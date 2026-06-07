@@ -224,6 +224,53 @@ ipcMain.handle('list-drives', async () => {
   return out;
 });
 
+// 네트워크의 SMB 컴퓨터/NAS 목록 (Explorer '네트워크'와 동일, UPnP/DLNA는 제외)
+ipcMain.handle('list-network', async () => {
+  const ps = "$ErrorActionPreference='SilentlyContinue';$sh=New-Object -ComObject Shell.Application;$n=$sh.NameSpace(18);if($n){$n.Items()|ForEach-Object{ \"$($_.Name)|$($_.Path)|$($_.IsFolder)\" }}";
+  const out = await execText('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], 12000);
+  const seen = new Set();
+  const list = [];
+  for (const l of out.split(/\r?\n/)) {
+    const t = l.trim(); if (!t) continue;
+    const parts = t.split('|');
+    if (parts.length < 3) continue;
+    const name = parts[0];
+    const p = parts[1].trim();
+    const isFolder = /true/i.test(parts[2]);
+    if (!isFolder || !p.startsWith('\\\\')) continue;       // SMB 공유 서버만 (\\호스트)
+    const host = p.replace(/^\\+/, '').split('\\')[0];
+    const key = host.toLowerCase();
+    if (!host || seen.has(key)) continue; seen.add(key);
+    list.push({ name: name || host, path: '\\\\' + host });
+  }
+  return list;
+});
+
+// 한 컴퓨터(\\호스트)의 공유 폴더 목록
+ipcMain.handle('list-shares', async (event, comp) => {
+  if (!comp) return [];
+  const host = comp.replace(/[\\/]+$/, '');
+  // 주의: cmd 인자에 따옴표를 넣으면 Node가 \" 로 이스케이프해 깨짐. 호스트명엔 공백이 없으므로 따옴표 없이 전달.
+  // chcp 65001 로 출력 인코딩을 UTF-8 로 바꿔 한글 공유명이 깨지지 않게 함.
+  const out = await execText('cmd.exe', ['/d', '/s', '/c', `chcp 65001>nul & net view ${host} /all`], 12000);
+  const lines = out.split(/\r?\n/);
+  const start = lines.findIndex(l => /^-{3,}/.test(l.trim()));
+  const shares = [];
+  if (start >= 0) {
+    for (let i = start + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) break;                              // 표 끝(빈 줄)
+      // 공유명 + 2칸 이상 공백 + 타입컬럼(글자) 형태만 허용 → 푸터("...completed") 같은 줄 제외
+      const m = line.match(/^(.+?)\s{2,}\S/);
+      if (!m) continue;
+      const name = m[1].trim();
+      if (!name || name.endsWith('$')) continue;            // IPC$ 등 제외
+      shares.push({ name, path: host + '\\' + name });
+    }
+  }
+  return shares;
+});
+
 // 한 폴더의 하위 폴더 목록 (트리 펼침용)
 ipcMain.handle('list-dir', async (event, dir) => {
   try {

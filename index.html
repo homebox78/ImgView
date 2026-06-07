@@ -95,6 +95,8 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .tarrow svg{width:9px;height:9px}
 .tarrow.open{transform:rotate(90deg)}
 .tarrow.leaf{visibility:hidden}
+.tarrow.busy{animation:tspin .7s linear infinite;color:var(--accent)}
+@keyframes tspin{to{transform:rotate(360deg)}}
 .ticon{width:15px;height:15px;flex:none;color:var(--accent);display:grid;place-items:center}
 .ticon svg{width:15px;height:15px}
 .tlabel{overflow:hidden;text-overflow:ellipsis}
@@ -432,20 +434,32 @@ function renderGrid(){
 
 // ---- 폴더 트리(탐색기) ----
 const FOLDER_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+const NET_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="6" rx="1.5"/><rect x="2" y="15" width="20" height="6" rx="1.5"/><path d="M6 6h.01M6 18h.01M12 9v6"/></svg>';
+const PC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>';
 const CARET_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
 let curFolder=null;
+// 기본 자식 로더: 하위 폴더 (일반 폴더/드라이브/공유)
+const dirLoader = async p => (await API.listDir(p)).map(s=>({name:s.name,path:s.path}));
 async function initTree(){
   if(!API||!API.listDrives)return;
-  const drives=await API.listDrives();
   const roots=$('#treeRoots');
+  const drives=await API.listDrives();
   drives.forEach(d=>roots.appendChild(makeTreeNode(d.name,d.path)));
+  // 네트워크 노드(드라이브 문자 없는 NAS/공유 탐색)
+  roots.appendChild(makeTreeNode('네트워크','\\\\',{
+    icon:NET_SVG, clickable:false,
+    loadChildren: async()=> (await API.listNetwork()).map(c=>({
+      name:c.name, path:c.path,
+      opts:{ icon:PC_SVG, clickable:false,
+        loadChildren: async cp=> (await API.listShares(cp)).map(s=>({name:s.name,path:s.path})) }
+    }))
+  }));
 }
 // 경로/UNC 직접 열기 → 루트 노드로 추가 + 로드
 async function openPathInput(){
   const inp=$('#pathInput'); let p=(inp.value||'').trim();
   if(!p)return;
   if(!/[\\/]$/.test(p)) p+='\\';
-  // 트리에 루트 노드로 추가(중복 방지)
   const roots=$('#treeRoots');
   if(![...roots.querySelectorAll(':scope > .tnode > .trow')].some(r=>r.dataset.path.toLowerCase()===p.toLowerCase())){
     roots.insertBefore(makeTreeNode(p.replace(/\\$/,''),p), roots.firstChild);
@@ -454,37 +468,44 @@ async function openPathInput(){
   if(node) node.click();
   inp.value='';
 }
-function makeTreeNode(name,p){
+// opts: { icon, clickable(기본 true), loadChildren(p)->[{name,path,opts}] }
+function makeTreeNode(name,p,opts){
+  opts=opts||{};
+  const loadChildren = opts.loadChildren || dirLoader;
+  const clickable = opts.clickable!==false;
   const node=el('div','tnode');
   const row=el('div','trow'); row.dataset.path=p;
   const arrow=el('span','tarrow'); arrow.innerHTML=CARET_SVG;
-  const icon=el('span','ticon'); icon.innerHTML=FOLDER_SVG;
+  const icon=el('span','ticon'); icon.innerHTML=opts.icon||FOLDER_SVG;
   const label=el('span','tlabel'); label.textContent=name;
   row.append(arrow,icon,label);
   const kids=el('div','tchildren');
   node.append(row,kids);
-  let loaded=false, open=false;
+  let loaded=false, open=false, loading=false;
   async function toggle(force){
     open = (force===undefined) ? !open : force;
     arrow.classList.toggle('open',open); kids.classList.toggle('open',open);
-    if(open&&!loaded){
-      loaded=true;
-      const subs=await API.listDir(p);
+    if(open&&!loaded&&!loading){
+      loading=true; arrow.classList.add('busy');
+      let subs=[];
+      try{ subs=await loadChildren(p); }catch(e){}
+      loading=false; arrow.classList.remove('busy'); loaded=true;
       if(!subs.length){ arrow.classList.add('leaf'); }
-      subs.forEach(s=>kids.appendChild(makeTreeNode(s.name,s.path)));
+      subs.forEach(s=>kids.appendChild(makeTreeNode(s.name,s.path,s.opts)));
     }
   }
   arrow.onclick=e=>{ e.stopPropagation(); toggle(); };
   row.onclick=async()=>{
     document.querySelectorAll('.trow.sel').forEach(r=>r.classList.remove('sel'));
     row.classList.add('sel');
+    if(!clickable){ toggle(); return; }   // 네트워크/컴퓨터 노드는 클릭=펼침
     curFolder=p;
     toast('폴더 읽는 중…');
     const r=await API.loadFolder(p);
     if(r&&r.ok){ toast(r.count?`${name} · ${r.count}장`:`${name} · 이미지 없음`); }
     else toast('폴더를 열 수 없습니다');
   };
-  row.ondblclick=()=>toggle();   // 더블클릭 시 하위 폴더 펼침/접힘 토글
+  row.ondblclick=()=>toggle();   // 더블클릭 시 펼침/접힘 토글
   return node;
 }
 

@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('imgview', {
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),
   // 폴더 트리(탐색기)
   listDrives:    ()        => ipcRenderer.invoke('list-drives'),
+  listNetwork:   ()        => ipcRenderer.invoke('list-network'),
+  listShares:    (c)       => ipcRenderer.invoke('list-shares', c),
   listDir:       (p)       => ipcRenderer.invoke('list-dir', p),
   loadFolder:    (p)       => ipcRenderer.invoke('load-folder', p),
   // 우클릭/실행 인자/더블클릭으로 넘어온 이미지 수신 (main → renderer)

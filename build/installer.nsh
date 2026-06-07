@@ -30,6 +30,15 @@
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgViewOpen"
 !macroend
 
+; '연결 프로그램(Open with)' 후보로 노출시킬 지원 형식 등록
+!macro RegSupType EXT
+  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\SupportedTypes" "${EXT}" ""
+  WriteRegStr HKCU "Software\Classes\${EXT}\OpenWithList\ImgView.exe" "" ""
+!macroend
+!macro DelSupType EXT
+  DeleteRegKey HKCU "Software\Classes\${EXT}\OpenWithList\ImgView.exe"
+!macroend
+
 ; 설치 시: 우클릭 "ImgView로 보기" 메뉴 등록 (현재 사용자, HKCU)
 !macro customInstall
   !insertmacro RegImgVerb ".jpg"
@@ -46,6 +55,23 @@
   WriteRegStr HKCU "Software\Classes\Directory\shell\ImgViewOpen" "" "ImgView로 폴더 보기"
   WriteRegStr HKCU "Software\Classes\Directory\shell\ImgViewOpen" "Icon" "$INSTDIR\ImgView.exe,0"
   WriteRegStr HKCU "Software\Classes\Directory\shell\ImgViewOpen\command" "" '"$INSTDIR\ImgView.exe" "%1"'
+
+  ; ===== '연결 프로그램(Open with)' 목록에 ImgView 등록 =====
+  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe" "FriendlyAppName" "ImgView"
+  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\DefaultIcon" "" "$INSTDIR\ImgView.exe,0"
+  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\shell\open" "FriendlyAppName" "ImgView"
+  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\shell\open\command" "" '"$INSTDIR\ImgView.exe" "%1"'
+  !insertmacro RegSupType ".jpg"
+  !insertmacro RegSupType ".jpeg"
+  !insertmacro RegSupType ".png"
+  !insertmacro RegSupType ".gif"
+  !insertmacro RegSupType ".webp"
+  !insertmacro RegSupType ".bmp"
+  !insertmacro RegSupType ".svg"
+  !insertmacro RegSupType ".tif"
+  !insertmacro RegSupType ".tiff"
+  !insertmacro RegSupType ".ico"
+
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 !macroend
 
@@ -62,5 +88,17 @@
   !insertmacro DelImgVerb ".tiff"
   !insertmacro DelImgVerb ".ico"
   DeleteRegKey HKCU "Software\Classes\Directory\shell\ImgViewOpen"
+  ; 연결 프로그램 등록 제거
+  !insertmacro DelSupType ".jpg"
+  !insertmacro DelSupType ".jpeg"
+  !insertmacro DelSupType ".png"
+  !insertmacro DelSupType ".gif"
+  !insertmacro DelSupType ".webp"
+  !insertmacro DelSupType ".bmp"
+  !insertmacro DelSupType ".svg"
+  !insertmacro DelSupType ".tif"
+  !insertmacro DelSupType ".tiff"
+  !insertmacro DelSupType ".ico"
+  DeleteRegKey HKCU "Software\Classes\Applications\ImgView.exe"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 !macroend
