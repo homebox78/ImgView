@@ -55,26 +55,12 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .tbtn:disabled{opacity:.4;cursor:not-allowed}
 .sep{width:1px;height:22px;background:var(--border);margin:0 4px}
 
-/* 본문: 좌측 썸네일 + 우측 뷰어 */
-.body{flex:1;display:flex;min-height:0}
-.sidebar{width:220px;flex:none;border-right:1px solid var(--border-soft);
-  overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
-.thumb{position:relative;border-radius:10px;overflow:hidden;cursor:pointer;
-  border:2px solid transparent;background:var(--surface-3);transition:.18s var(--ease)}
-.thumb img{width:100%;height:84px;object-fit:cover;display:block}
-.thumb.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.thumb:hover{transform:translateY(-1px)}
-.thumb .tname{position:absolute;left:0;right:0;bottom:0;padding:14px 7px 5px;font-size:10px;
-  color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  background:linear-gradient(transparent,rgba(0,0,0,.8))}
+/* 본문 */
+.body{flex:1;position:relative;display:flex;min-height:0}
 
-/* 뷰어 영역 */
-.viewer{flex:1;position:relative;display:flex;align-items:center;justify-content:center;
-  background:#000;overflow:hidden;min-width:0}
-.viewer img{max-width:100%;max-height:100%;object-fit:contain;
-  transition:transform .12s var(--ease)}
+/* 빈 화면(드롭존) */
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:18px;text-align:center;cursor:pointer}
+  justify-content:center;gap:18px;text-align:center;cursor:pointer;z-index:8}
 .empty.drag{background:radial-gradient(ellipse at center,var(--accent-glow),transparent 70%)}
 .drop-ico{width:74px;height:74px;border-radius:20px;
   background:linear-gradient(150deg,var(--surface-3),var(--surface));
@@ -85,6 +71,45 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .drop-title em{font-style:normal;color:var(--accent)}
 .drop-sub{font-size:13px;color:var(--text-dim);margin-top:6px}
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+/* === 그리드 화면(바둑판) + 우측 미리보기 === */
+.gridscreen{flex:1;display:flex;min-height:0}
+.grid{flex:1;overflow-y:auto;padding:18px;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  grid-auto-rows:min-content;gap:16px;align-content:start}
+.tile{cursor:pointer;border-radius:14px;overflow:hidden;background:var(--surface);
+  border:1px solid var(--border-soft);transition:.16s var(--ease)}
+.tile:hover{transform:translateY(-3px);border-color:var(--surface-3);box-shadow:var(--shadow-soft)}
+.tile.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 12px 28px -14px var(--accent-glow)}
+.tile-img{width:100%;aspect-ratio:1/1;background:var(--surface-3);display:grid;place-items:center;overflow:hidden}
+.tile-img img{width:100%;height:100%;object-fit:cover;display:block}
+.tile-name{padding:8px 10px;font-size:11.5px;color:var(--text-faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile.active .tile-name{color:var(--text)}
+
+/* 우측 미리보기 패널 */
+.preview{width:340px;flex:none;border-left:1px solid var(--border-soft);
+  padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--bg-soft)}
+.preview-empty{margin:auto;text-align:center;color:var(--text-faint);font-size:13px;line-height:1.8}
+.pv-img{flex:1;min-height:0;display:grid;place-items:center;background:#000;
+  border-radius:14px;overflow:hidden;border:1px solid var(--border-soft)}
+.pv-img img{max-width:100%;max-height:100%;object-fit:contain}
+.pv-meta{flex:none}
+.pv-name{font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-dim{font-size:12px;color:var(--text-faint);margin-top:4px}
+.pv-open{width:100%;justify-content:center;height:40px;font-size:13px}
+
+/* === 단독 크게보기 화면 === */
+.viewer{flex:1;position:relative;display:none;align-items:center;justify-content:center;
+  background:#000;overflow:hidden;min-width:0}
+.viewer img{max-width:100%;max-height:100%;object-fit:contain;
+  transition:transform .12s var(--ease)}
+.single-back{position:absolute;top:16px;left:16px;z-index:6;display:flex;align-items:center;gap:6px;
+  height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--border);
+  background:rgba(12,13,16,.55);backdrop-filter:blur(6px);color:#fff;cursor:pointer;
+  font-family:inherit;font-size:12.5px;font-weight:600;opacity:0;transition:.2s var(--ease)}
+.viewer:hover .single-back{opacity:1}
+.single-back:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 
 /* 좌우 이동 버튼 */
 .nav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;
@@ -169,19 +194,31 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   </header>
 
   <!-- 본문 -->
-  <div class="body">
-    <aside class="sidebar" id="sidebar"></aside>
-    <div class="viewer" id="viewer">
-      <div class="empty" id="empty">
-        <div class="drop-ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
-          </svg>
-        </div>
-        <div><div class="drop-title">이미지나 폴더를 <em>여기에</em> 끌어다 놓으세요</div>
-          <div class="drop-sub">JPG · PNG · WebP · GIF · BMP · 또는 클릭해서 열기</div></div>
+  <div class="body" id="body">
+    <!-- 빈 화면 -->
+    <div class="empty" id="empty">
+      <div class="drop-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+        </svg>
       </div>
-      <img id="mainImg" style="display:none" alt="">
+      <div><div class="drop-title">이미지나 폴더를 <em>여기에</em> 끌어다 놓으세요</div>
+        <div class="drop-sub">JPG · PNG · WebP · GIF · BMP · 또는 클릭해서 열기</div></div>
+    </div>
+
+    <!-- 그리드(바둑판) + 우측 미리보기 -->
+    <div class="gridscreen" id="gridScreen" style="display:none">
+      <div class="grid" id="grid"></div>
+      <aside class="preview" id="preview"></aside>
+    </div>
+
+    <!-- 단독 크게보기 -->
+    <div class="viewer" id="singleScreen">
+      <button class="single-back" id="backBtn">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        목록
+      </button>
+      <img id="mainImg" alt="">
       <button class="nav prev" id="navPrev" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
       <button class="nav next" id="navNext" style="display:none">
@@ -192,7 +229,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <!-- 상태바 -->
   <div class="statusbar">
     <div id="statLeft">이미지를 열어주세요</div>
-    <div class="zoomctl">
+    <div class="zoomctl" id="zoomctl" style="visibility:hidden">
       <button id="zoomOut">−</button><span id="zoomLabel">100%</span><button id="zoomIn">＋</button>
       <button id="zoomFit" title="창 맞춤">맞춤</button>
     </div>
@@ -230,76 +267,137 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 const $ = s => document.querySelector(s);
 const API = window.imgview || null;
 
-let images = [];   // {name, path, url, blob?}
-let idx = 0;
+let images = [];          // {name, path, url}
+let idx = 0;              // 선택/표시 중인 인덱스
+let mode = 'empty';       // 'empty' | 'grid' | 'single'
 let rotation = 0, zoom = 1, fitMode = true;
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function current(){return images[idx]||null;}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function getDims(url){return new Promise(res=>{const im=new Image();im.onload=()=>res({w:im.naturalWidth,h:im.naturalHeight});im.src=url;});}
+
+// ---- 모드 전환 ----
+function setMode(m){
+  mode=m;
+  $('#empty').style.display      = m==='empty'  ? 'flex':'none';
+  $('#gridScreen').style.display = m==='grid'   ? 'flex':'none';
+  $('#singleScreen').style.display = m==='single' ? 'flex':'none';
+  $('#zoomctl').style.visibility = m==='single' ? 'visible':'hidden';
+  updateStatus();
+}
 
 // ---- 파일 추가 ----
 function addFiles(list){
+  const wasEmpty = images.length===0;
   for(const f of list){
     const url = f.url || URL.createObjectURL(f.blob || f);
     images.push({ name:f.name, path:f.path||null, url });
   }
-  renderSidebar();
-  if(images.length) show(images.length===list.length?0:idx);
-}
-function renderSidebar(){
-  $('#sidebar').innerHTML = images.map((im,i)=>`
-    <div class="thumb ${i===idx?'active':''}" data-i="${i}">
-      <img src="${im.url}" loading="lazy"><div class="tname">${im.name}</div></div>`).join('');
-  $('#sidebar').querySelectorAll('.thumb').forEach(t=>t.onclick=()=>show(+t.dataset.i));
+  if(mode==='empty') setMode('grid');
+  if(mode!=='single') renderGrid();
+  if(wasEmpty) select(0); else if(mode==='grid') { renderGrid(); select(idx); }
 }
 
-// ---- 표시 ----
-function show(i){
+// ---- 그리드(바둑판) ----
+function renderGrid(){
+  $('#grid').innerHTML = images.map((im,i)=>`
+    <div class="tile ${i===idx?'active':''}" data-i="${i}">
+      <div class="tile-img"><img src="${im.url}" loading="lazy" draggable="false"></div>
+      <div class="tile-name" title="${esc(im.name)}">${esc(im.name)}</div>
+    </div>`).join('');
+  $('#grid').querySelectorAll('.tile').forEach(t=>{
+    const i=+t.dataset.i;
+    t.onclick=()=>select(i);
+    t.ondblclick=()=>openSingle(i);
+  });
+}
+
+// 클릭만 → 선택 + 우측 미리보기
+function select(i){
+  idx=i;
+  $('#grid').querySelectorAll('.tile').forEach(t=>t.classList.toggle('active',+t.dataset.i===i));
+  const active=$(`.tile[data-i="${i}"]`); if(active) active.scrollIntoView({block:'nearest'});
+  renderPreview();
+  setBtns(true);
+  updateStatus();
+}
+function renderPreview(){
+  const im=current(), p=$('#preview');
+  if(!im){ p.innerHTML='<div class="preview-empty">목록에서 이미지를 클릭하면<br>여기에 미리보기가 나와요</div>'; return; }
+  p.innerHTML=`
+    <div class="pv-img"><img id="pvImg" src="${im.url}" draggable="false"></div>
+    <div class="pv-meta">
+      <div class="pv-name" title="${esc(im.name)}">${esc(im.name)}</div>
+      <div class="pv-dim" id="pvDim">불러오는 중…</div>
+    </div>
+    <button class="tbtn accent pv-open" id="pvOpen">크게 보기 (더블클릭)</button>`;
+  const pv=$('#pvImg');
+  pv.onload=()=>{ $('#pvDim').textContent=`${pv.naturalWidth} × ${pv.naturalHeight}`; };
+  pv.ondblclick=()=>openSingle(idx);
+  $('#pvOpen').onclick=()=>openSingle(idx);
+}
+
+// ---- 단독 크게보기 ----
+function openSingle(i){ idx=i; setMode('single'); showSingle(); }
+function showSingle(){
   if(!images.length)return;
-  idx=(i+images.length)%images.length;
   rotation=0; zoom=1; fitMode=true;
-  const im=current();
-  const el=$('#mainImg');
-  el.src=im.url; el.style.display='block';
-  $('#empty').style.display='none';
+  const im=current(), el=$('#mainImg');
+  el.src=im.url;
   $('#navPrev').style.display=$('#navNext').style.display=images.length>1?'grid':'none';
   applyTransform();
-  el.onload=()=>updateStatus();
-  renderSidebar();
+  el.onload=updateStatus;
   setBtns(true);
-  document.title = `${im.name} — ImgView`;
+  document.title=`${im.name} — ImgView`;
 }
+function singleNav(d){ idx=(idx+d+images.length)%images.length; showSingle(); }
+function backToGrid(){ setMode('grid'); renderGrid(); select(idx); }
+
 function applyTransform(){
   const el=$('#mainImg');
   el.style.transform=`rotate(${rotation}deg) scale(${zoom})`;
   $('#zoomLabel').textContent=Math.round(zoom*100)+'%';
 }
 function updateStatus(){
-  const im=current(),el=$('#mainImg');
-  $('#statLeft').innerHTML=`<b>[${idx+1}/${images.length}]</b> ${im.name} — ${el.naturalWidth}×${el.naturalHeight}`;
+  if(!images.length){ $('#statLeft').textContent='이미지를 열어주세요'; return; }
+  if(mode==='single'){
+    const im=current(),el=$('#mainImg');
+    $('#statLeft').innerHTML=`<b>[${idx+1}/${images.length}]</b> ${esc(im.name)} — ${el.naturalWidth}×${el.naturalHeight}`;
+  }else{
+    $('#statLeft').innerHTML=`<b>${images.length}장</b> · 이미지를 더블클릭하면 크게 볼 수 있어요`;
+  }
 }
 function setBtns(on){['rotL','rotR','resizeBtn','convBtn','renameBtn','delBtn','fsBtn'].forEach(id=>$('#'+id).disabled=!on);}
 
-// ---- 이동/줌 ----
-$('#navPrev').onclick=()=>show(idx-1);
-$('#navNext').onclick=()=>show(idx+1);
+// 편집 후 화면 갱신(그리드 타일·미리보기·단독뷰 동시)
+function refreshViews(){
+  const im=current(); if(!im)return;
+  const tImg=$(`.tile[data-i="${idx}"] .tile-img img`); if(tImg)tImg.src=im.url;
+  if(mode==='grid') renderPreview();
+  if(mode==='single'){ $('#mainImg').src=im.url; applyTransform(); }
+}
+
+// ---- 이동/줌 (단독뷰) ----
+$('#backBtn').onclick=backToGrid;
+$('#navPrev').onclick=()=>singleNav(-1);
+$('#navNext').onclick=()=>singleNav(1);
 $('#zoomIn').onclick=()=>{fitMode=false;zoom=Math.min(zoom*1.25,8);applyTransform();};
 $('#zoomOut').onclick=()=>{fitMode=false;zoom=Math.max(zoom*0.8,0.1);applyTransform();};
 $('#zoomFit').onclick=()=>{zoom=1;fitMode=true;applyTransform();};
-$('#viewer').addEventListener('wheel',e=>{
-  if(!current())return; e.preventDefault();
+$('#singleScreen').addEventListener('wheel',e=>{
+  if(mode!=='single')return; e.preventDefault();
   fitMode=false; zoom=Math.max(0.1,Math.min(8, zoom*(e.deltaY<0?1.1:0.9))); applyTransform();
 },{passive:false});
 
 // ---- 회전 후 저장 ----
 async function rotateSave(deg){
   const im=current(); if(!im)return;
-  rotation=(rotation+deg)%360; applyTransform();
+  if(mode==='single'){ rotation=(rotation+deg)%360; applyTransform(); }
   if(!API||!im.path){ toast('표시만 회전했어요 (데스크톱 빌드에서 저장됩니다)'); return; }
-  const blob = await renderToBlob(im, deg, null, null);
-  const buf = await blob.arrayBuffer();
-  const r = await API.saveOverwrite({srcPath:im.path, data:buf, backup:true});
-  if(r.ok){ rotation=0; im.url=URL.createObjectURL(blob); $('#mainImg').src=im.url; applyTransform(); renderSidebar();
+  const blob=await renderToBlob(im,deg,null,null);
+  const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
+  if(r.ok){ rotation=0; im.url=URL.createObjectURL(blob); refreshViews();
     toast('회전 저장 완료 (원본은 ImgView_원본 폴더)'); }
   else toast('저장 실패: '+r.error);
 }
@@ -333,16 +431,16 @@ $('#rzMode').onchange=e=>{
 };
 $('#rzApply').onclick=async()=>{
   const im=current(); if(!im)return;
-  const el=$('#mainImg'); let w=el.naturalWidth,h=el.naturalHeight;
-  const mode=$('#rzMode').value;
-  if(mode==='ratio'){const r=(+$('#rzRatio').value||100)/100;w=Math.round(w*r);h=Math.round(h*r);}
-  else if(mode==='res'){w=+$('#rzW').value||w;h=+$('#rzH').value||h;}
+  const d=await getDims(im.url); let w=d.w,h=d.h;
+  const m=$('#rzMode').value;
+  if(m==='ratio'){const r=(+$('#rzRatio').value||100)/100;w=Math.round(w*r);h=Math.round(h*r);}
+  else if(m==='res'){w=+$('#rzW').value||w;h=+$('#rzH').value||h;}
   else{const t=+$('#rzLong').value||Math.max(w,h);if(w>=h){h=Math.round(h*t/w);w=t;}else{w=Math.round(w*t/h);h=t;}}
   closeDialogs();
   if(!API||!im.path){toast('데스크톱 빌드에서 저장됩니다');return;}
   const blob=await renderToBlob(im,0,{w,h});
   const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
-  if(r.ok){im.url=URL.createObjectURL(blob);$('#mainImg').src=im.url;renderSidebar();toast(`${w}×${h} 크기변경 완료`);}
+  if(r.ok){im.url=URL.createObjectURL(blob);refreshViews();toast(`${w}×${h} 크기변경 완료`);}
   else toast('저장 실패');
 };
 
@@ -369,19 +467,28 @@ $('#renameBtn').onclick=async()=>{
   const im=current();if(!im||!API||!im.path){toast('데스크톱 빌드에서 가능합니다');return;}
   const nn=prompt('새 이름:',im.name); if(!nn||nn===im.name)return;
   const r=await API.renameFile({srcPath:im.path,newName:nn});
-  if(r.ok){im.name=nn;im.path=r.path;renderSidebar();updateStatus();toast('이름변경 완료');}else toast(r.error);
+  if(r.ok){im.name=nn;im.path=r.path;
+    if(mode==='single')document.title=`${nn} — ImgView`;
+    renderGrid(); if(mode==='grid')select(idx); updateStatus(); toast('이름변경 완료');}
+  else toast(r.error);
 };
 $('#delBtn').onclick=async()=>{
   const im=current();if(!im)return;
   if(!confirm(`${im.name}을(를) 삭제할까요? (휴지통으로 이동)`))return;
   if(API&&im.path){const r=await API.deleteFile(im.path);if(!r.ok){toast(r.error);return;}}
   URL.revokeObjectURL(im.url); images.splice(idx,1);
-  if(!images.length){location.reload();return;}
-  show(Math.min(idx,images.length-1)); toast('삭제 완료');
+  if(!images.length){ setMode('empty'); setBtns(false); document.title='ImgView'; toast('삭제 완료'); return; }
+  idx=Math.min(idx,images.length-1);
+  if(mode==='single') showSingle(); else { renderGrid(); select(idx); }
+  toast('삭제 완료');
 };
 
 // ---- 전체화면 ----
-$('#fsBtn').onclick=()=>{document.fullscreenElement?document.exitFullscreen():$('#viewer').requestFullscreen();};
+$('#fsBtn').onclick=()=>{
+  if(document.fullscreenElement){document.exitFullscreen();return;}
+  if(mode!=='single')openSingle(idx);
+  $('#singleScreen').requestFullscreen();
+};
 
 // ---- 열기 ----
 $('#openBtn').onclick=async()=>{ if(API){await API.openFiles();} else $('#fileInput').click(); };
@@ -393,11 +500,11 @@ const fi=document.createElement('input');fi.type='file';fi.accept='image/*';fi.m
 document.body.appendChild(fi);
 fi.onchange=e=>{const fs=[...e.target.files].map(f=>({name:f.name,blob:f}));addFiles(fs);e.target.value='';};
 
-// 드래그앤드롭
-const vp=$('#viewer');
-['dragenter','dragover'].forEach(ev=>vp.addEventListener(ev,e=>{e.preventDefault();$('#empty').classList.add('drag');}));
-['dragleave','drop'].forEach(ev=>vp.addEventListener(ev,e=>{e.preventDefault();$('#empty').classList.remove('drag');}));
-vp.addEventListener('drop',e=>{
+// 드래그앤드롭 (본문 전체)
+const bodyEl=$('#body');
+['dragenter','dragover'].forEach(ev=>bodyEl.addEventListener(ev,e=>{e.preventDefault();$('#empty').classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>bodyEl.addEventListener(ev,e=>{e.preventDefault();$('#empty').classList.remove('drag');}));
+bodyEl.addEventListener('drop',e=>{
   const fs=[...e.dataTransfer.files].filter(f=>/^image\//.test(f.type)).map(f=>({name:f.name,blob:f}));
   if(fs.length)addFiles(fs);
 });
@@ -418,18 +525,29 @@ document.querySelectorAll('.scrim').forEach(s=>s.onclick=e=>{if(e.target===s)clo
 // 단축키
 document.addEventListener('keydown',e=>{
   if(document.querySelector('.scrim.show')){if(e.key==='Escape')closeDialogs();return;}
-  if(e.key==='ArrowRight')show(idx+1);
-  else if(e.key==='ArrowLeft')show(idx-1);
-  else if(e.key==='Home')show(0);
-  else if(e.key==='End')show(images.length-1);
-  else if(e.key==='Delete')$('#delBtn').click();
-  else if(e.key==='F2')$('#renameBtn').click();
-  else if(e.key==='F11'){e.preventDefault();$('#fsBtn').click();}
-  else if(e.key==='Escape'&&document.fullscreenElement)document.exitFullscreen();
-  else if(e.ctrlKey&&e.key==='t'){e.preventDefault();rotateSave(90);}
-  else if(e.ctrlKey&&e.key===','){e.preventDefault();rotateSave(-90);}
-  else if(e.ctrlKey&&e.key==='r'){e.preventDefault();$('#resizeBtn').click();}
-  else if(e.ctrlKey&&e.key==='e'){e.preventDefault();$('#convBtn').click();}
+  if(!images.length)return;
+  if(mode==='single'){
+    if(e.key==='ArrowRight')singleNav(1);
+    else if(e.key==='ArrowLeft')singleNav(-1);
+    else if(e.key==='Home')openSingle(0);
+    else if(e.key==='End')openSingle(images.length-1);
+    else if(e.key==='Escape'){ if(document.fullscreenElement)document.exitFullscreen(); else backToGrid(); }
+    else if(e.key==='Delete')$('#delBtn').click();
+    else if(e.key==='F2')$('#renameBtn').click();
+    else if(e.key==='F11'){e.preventDefault();$('#fsBtn').click();}
+    else if(e.ctrlKey&&e.key==='t'){e.preventDefault();rotateSave(90);}
+    else if(e.ctrlKey&&e.key===','){e.preventDefault();rotateSave(-90);}
+    else if(e.ctrlKey&&e.key==='r'){e.preventDefault();$('#resizeBtn').click();}
+    else if(e.ctrlKey&&e.key==='e'){e.preventDefault();$('#convBtn').click();}
+  }else if(mode==='grid'){
+    if(e.key==='ArrowRight'||e.key==='ArrowDown')select(Math.min(idx+1,images.length-1));
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp')select(Math.max(idx-1,0));
+    else if(e.key==='Home')select(0);
+    else if(e.key==='End')select(images.length-1);
+    else if(e.key==='Enter')openSingle(idx);
+    else if(e.key==='Delete')$('#delBtn').click();
+    else if(e.key==='F2')$('#renameBtn').click();
+  }
 });
 </script>
 </body>

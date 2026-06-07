@@ -5,7 +5,8 @@ node_modules/
 dist/
 
 # local screenshots / scratch
-_screen*.png
+_*.png
+_sample/
 
 # OS / editor
 Thumbs.db

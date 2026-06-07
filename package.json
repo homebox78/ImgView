@@ -25,8 +25,6 @@
       "allowToChangeInstallationDirectory": true,
       "license": "license_ko.txt",
       "language": "1042",
-      "installerLanguages": ["ko"],
-      "multiLanguageInstaller": false,
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico",
       "installerHeaderIcon": "icon.ico",
