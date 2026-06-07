@@ -1,0 +1,65 @@
+{
+  "name": "imgview",
+  "version": "0.1.0",
+  "description": "ImgView(이미뷰) - 보기 좋게, 빠르게. 이미지 뷰어 & 기본 편집 데스크톱 도구",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "author": "ImgView",
+  "license": "MIT",
+  "build": {
+    "appId": "com.imgview.app",
+    "productName": "ImgView",
+    "copyright": "© 2026 ImgView",
+    "artifactName": "ImgView-Install-${version}.${ext}",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "license": "license_ko.txt",
+      "language": "1042",
+      "installerLanguages": ["ko"],
+      "multiLanguageInstaller": false,
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "installerSidebar": "installerSidebar.bmp",
+      "uninstallerSidebar": "installerSidebar.bmp",
+      "installerHeader": "installerHeader.bmp",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "menuCategory": false,
+      "shortcutName": "ImgView",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "uninstallDisplayName": "ImgView ${version}"
+    },
+    "fileAssociations": [
+      { "ext": "jpg",  "description": "이미지 파일", "icon": "icon.ico" },
+      { "ext": "jpeg", "description": "이미지 파일", "icon": "icon.ico" },
+      { "ext": "png",  "description": "이미지 파일", "icon": "icon.ico" },
+      { "ext": "gif",  "description": "이미지 파일", "icon": "icon.ico" },
+      { "ext": "webp", "description": "이미지 파일", "icon": "icon.ico" },
+      { "ext": "bmp",  "description": "이미지 파일", "icon": "icon.ico" }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.png",
+      "icon.ico",
+      "fonts/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1"
+  }
+}
