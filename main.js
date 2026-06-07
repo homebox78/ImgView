@@ -171,44 +171,57 @@ ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPa
 ipcMain.handle('show-in-folder', async (event, p) => { if (p) shell.showItemInFolder(p); });
 
 // ===== 폴더 트리(탐색기) =====
+function execText(file, args, timeout = 7000) {
+  return new Promise((resolve) => {
+    try {
+      execFile(file, args, { windowsHide: true, timeout, maxBuffer: 1 << 20 },
+        (err, stdout) => resolve(stdout ? stdout.toString() : ''));
+    } catch (e) { resolve(''); }
+  });
+}
+
 // 사용 가능한 드라이브 목록 (로컬 + 네트워크 매핑 드라이브 포함)
 ipcMain.handle('list-drives', async () => {
-  // 1순위: PowerShell CIM 으로 네트워크 드라이브까지 조회
-  const fromPS = await new Promise((resolve) => {
-    execFile('powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command',
-       'Get-CimInstance Win32_LogicalDisk | ForEach-Object { "$($_.DeviceID)|$($_.VolumeName)|$($_.ProviderName)|$($_.DriveType)" }'],
-      { windowsHide: true, timeout: 7000 },
-      (err, stdout) => {
-        if (err || !stdout) return resolve(null);
-        const list = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
-          const [id, vol, prov, type] = l.split('|');
-          const letter = (id || '').replace(/\\$/, '');      // "C:" / "Z:"
-          let name = letter;
-          if (prov) name = `${letter}  ${prov.replace(/^\\\\/, '')}`; // 네트워크: 경로 표시
-          else if (vol) name = `${letter}  ${vol}`;
-          return { name, path: letter + '\\', net: type === '4' };
-        }).filter(d => d.path && /^[A-Za-z]:\\$/.test(d.path));
-        resolve(list.length ? list : null);
-      });
-  });
-  // A~Z 직접 탐지 (CIM이 놓친 드라이브 보강)
-  const probe = [];
+  const out = [];
+  const seen = new Set();
+  const add = (letter, name, net) => {
+    const key = letter.toUpperCase();
+    if (!/^[A-Z]:$/.test(key) || seen.has(key)) return;
+    seen.add(key);
+    out.push({ name: name || letter, path: key + '\\', net: !!net });
+  };
+
+  // 1) CIM: 로컬/네트워크/이동식 모두. ProviderName 있으면 네트워크
+  const cim = await execText('powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command',
+     'Get-CimInstance Win32_LogicalDisk | ForEach-Object { "$($_.DeviceID)|$($_.VolumeName)|$($_.ProviderName)|$($_.DriveType)" }']);
+  for (const l of cim.split(/\r?\n/)) {
+    const m = l.trim(); if (!m) continue;
+    const [id, vol, prov, type] = m.split('|');
+    const letter = (id || '').replace(/\\$/, '');
+    if (!/^[A-Za-z]:$/.test(letter)) continue;
+    let name = letter;
+    if (prov) name = `${letter}  ${prov.replace(/^\\\\/, '')}`;
+    else if (vol) name = `${letter}  ${vol}`;
+    add(letter, name, type === '4' || !!prov);
+  }
+
+  // 2) net use: 매핑된 네트워크 드라이브(끊긴 것 포함)까지 — CIM이 놓치는 경우 보강
+  const nu = await execText('cmd.exe', ['/d', '/s', '/c', 'net use']);
+  const re = /([A-Za-z]):\s+(\\\\[^\s]+)/g;
+  let mm;
+  while ((mm = re.exec(nu)) !== null) {
+    add(mm[1] + ':', `${mm[1]}:  ${mm[2]}`, true);
+  }
+
+  // 3) A~Z 직접 탐지 (로컬 보강)
   for (let i = 65; i <= 90; i++) {
     const L = String.fromCharCode(i);
-    const root = `${L}:\\`;
-    try { await fs.access(root); probe.push({ name: `${L}:`, path: root }); } catch (e) {}
+    try { await fs.access(`${L}:\\`); add(`${L}:`, `${L}:`, false); } catch (e) {}
   }
-  // CIM ∪ probe (드라이브 문자 기준 중복 제거)
-  const merged = [];
-  const seen = new Set();
-  for (const d of [...(fromPS || []), ...probe]) {
-    const key = d.path.slice(0, 2).toUpperCase();
-    if (seen.has(key)) continue;
-    seen.add(key); merged.push(d);
-  }
-  merged.sort((a, b) => a.path.localeCompare(b.path));
-  return merged;
+
+  out.sort((a, b) => a.path.localeCompare(b.path));
+  return out;
 });
 
 // 한 폴더의 하위 폴더 목록 (트리 펼침용)
