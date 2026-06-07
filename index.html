@@ -9,15 +9,16 @@
   font-family:'Pretendard Variable';font-weight:45 920;font-style:normal;
   font-display:swap;src:url('fonts/PretendardVariable.woff2') format('woff2');
 }
-/* === ImgView — ImageZip 시리즈 공통 다크 민트 톤 === */
+/* === ImgView — ImageZip 시리즈 공통 톤 (중립 near-black 램프: 검정 강약을 일관되게) === */
 :root{
-  --bg:#0c0d10;--bg-soft:#101216;--surface:#15171c;--surface-2:#1b1e25;
-  --surface-3:#22262f;--border:#272b34;--border-soft:#1f232b;
-  --text:#fff;--text-dim:#eef1f6;--text-faint:#ccd2dc;
+  --bg:#0a0a0b;--bg-soft:#0f0f11;--surface:#151517;--surface-2:#1c1c1f;
+  --surface-3:#242427;--border:#2e2e33;--border-soft:#1d1d20;
+  --text:#f4f5f6;--text-dim:#dfe1e4;--text-faint:#a7adb5;
   --accent:#3fe0b0;--accent-deep:#1aa888;--accent-ink:#04221b;
-  --accent-glow:rgba(63,224,176,.18);--danger:#ff7a7a;
+  --accent-glow:rgba(63,224,176,.16);--danger:#ff7a7a;
+  --btn:#242427;--btn-bd:#3a3a40;--btn-hi:#2c2c31;--btn-bd-hi:#47474e;
   --radius:18px;--radius-sm:12px;
-  --shadow:0 24px 60px -18px rgba(0,0,0,.7);--shadow-soft:0 10px 30px -12px rgba(0,0,0,.6);
+  --shadow:0 24px 60px -18px rgba(0,0,0,.75);--shadow-soft:0 10px 30px -12px rgba(0,0,0,.6);
   --ease:cubic-bezier(.22,.61,.36,1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -44,10 +45,10 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .brand-sub{font-size:11px;color:var(--text-faint);margin-top:1px}
 .tools{display:flex;align-items:center;gap:7px}
 .tbtn{display:flex;align-items:center;gap:6px;height:36px;padding:0 13px;
-  border:1px solid #3a4151;background:var(--surface-3);color:var(--text-dim);
+  border:1px solid var(--btn-bd);background:var(--btn);color:var(--text-dim);
   border-radius:9px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;
   transition:.2s var(--ease)}
-.tbtn:hover{color:var(--text);border-color:#4a5266;background:#2b313c}
+.tbtn:hover{color:var(--text);border-color:var(--btn-bd-hi);background:var(--btn-hi)}
 .tbtn.accent{background:linear-gradient(135deg,var(--accent),var(--accent-deep));
   color:var(--accent-ink);border:none;font-weight:800}
 .tbtn.accent:hover{transform:translateY(-1px)}
