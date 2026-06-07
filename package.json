@@ -37,16 +37,9 @@
       "shortcutName": "ImgView",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
-      "uninstallDisplayName": "ImgView ${version}"
+      "uninstallDisplayName": "ImgView ${version}",
+      "include": "build/installer.nsh"
     },
-    "fileAssociations": [
-      { "ext": "jpg",  "description": "이미지 파일", "icon": "icon.ico" },
-      { "ext": "jpeg", "description": "이미지 파일", "icon": "icon.ico" },
-      { "ext": "png",  "description": "이미지 파일", "icon": "icon.ico" },
-      { "ext": "gif",  "description": "이미지 파일", "icon": "icon.ico" },
-      { "ext": "webp", "description": "이미지 파일", "icon": "icon.ico" },
-      { "ext": "bmp",  "description": "이미지 파일", "icon": "icon.ico" }
-    ],
     "files": [
       "main.js",
       "preload.js",

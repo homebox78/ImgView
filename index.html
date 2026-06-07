@@ -112,8 +112,8 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
   content-visibility:auto;contain-intrinsic-size:auto 200px}
 .tile:hover{border-color:var(--surface-3);box-shadow:var(--shadow-soft)}
 .tile.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 12px 28px -14px var(--accent-glow)}
-.tile-img{width:100%;aspect-ratio:1/1;background:var(--surface-3);display:grid;place-items:center;overflow:hidden}
-.tile-img img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .2s var(--ease)}
+.tile-img{width:100%;aspect-ratio:1/1;background:#0a0b0e;display:grid;place-items:center;overflow:hidden}
+.tile-img img{width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity .2s var(--ease)}
 .tile-img img.loaded{opacity:1}
 .tile-name{padding:8px 10px;font-size:11.5px;color:var(--text-faint);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -158,9 +158,10 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
   padding:0 16px;border-top:1px solid var(--border-soft);font-size:11.5px;color:var(--text-faint)}
 .statusbar b{color:var(--text-dim);font-weight:600}
 .zoomctl{display:flex;align-items:center;gap:6px}
-.zoomctl button{width:24px;height:24px;border-radius:7px;border:1px solid var(--border);
-  background:var(--surface);color:var(--text-dim);cursor:pointer;font-size:13px}
+.zoomctl button{height:24px;min-width:24px;padding:0 5px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text-dim);cursor:pointer;font-size:13px;font-family:inherit;white-space:nowrap}
 .zoomctl button:hover{color:var(--text);border-color:var(--surface-3)}
+.zoomctl #zoomFit{padding:0 10px;font-size:12px}
 
 /* 다이얼로그 */
 .scrim{position:fixed;inset:0;z-index:50;background:rgba(6,7,9,.72);backdrop-filter:blur(6px);
