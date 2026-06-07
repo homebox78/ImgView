@@ -2,9 +2,10 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
+const { execFile } = require('child_process');
 
 let mainWin = null;
-const IMG_RE = /\.(jpe?g|png|webp|gif|bmp|tiff?|ico)$/i;
+const IMG_RE = /\.(jpe?g|png|webp|gif|bmp|tiff?|ico|svg)$/i;
 
 // 명령줄 인자 → 이미지 경로 수집 (파일은 그대로, 폴더는 안의 이미지 펼침)
 async function collectImagePaths(argv) {
@@ -102,7 +103,7 @@ ipcMain.handle('open-files', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const r = await dialog.showOpenDialog(win, {
     title: '이미지 열기', properties: ['openFile', 'multiSelections'],
-    filters: [{ name: '이미지', extensions: ['jpg','jpeg','png','gif','webp','bmp','tif','tiff','ico'] }],
+    filters: [{ name: '이미지', extensions: ['jpg','jpeg','png','gif','webp','bmp','tif','tiff','ico','svg'] }],
   });
   if (r.canceled || !r.filePaths.length) return { ok: false };
   await sendFilesToRenderer(win, r.filePaths);
@@ -170,15 +171,44 @@ ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPa
 ipcMain.handle('show-in-folder', async (event, p) => { if (p) shell.showItemInFolder(p); });
 
 // ===== 폴더 트리(탐색기) =====
-// 사용 가능한 드라이브 목록 (Windows)
+// 사용 가능한 드라이브 목록 (로컬 + 네트워크 매핑 드라이브 포함)
 ipcMain.handle('list-drives', async () => {
-  const out = [];
+  // 1순위: PowerShell CIM 으로 네트워크 드라이브까지 조회
+  const fromPS = await new Promise((resolve) => {
+    execFile('powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command',
+       'Get-CimInstance Win32_LogicalDisk | ForEach-Object { "$($_.DeviceID)|$($_.VolumeName)|$($_.ProviderName)|$($_.DriveType)" }'],
+      { windowsHide: true, timeout: 7000 },
+      (err, stdout) => {
+        if (err || !stdout) return resolve(null);
+        const list = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+          const [id, vol, prov, type] = l.split('|');
+          const letter = (id || '').replace(/\\$/, '');      // "C:" / "Z:"
+          let name = letter;
+          if (prov) name = `${letter}  ${prov.replace(/^\\\\/, '')}`; // 네트워크: 경로 표시
+          else if (vol) name = `${letter}  ${vol}`;
+          return { name, path: letter + '\\', net: type === '4' };
+        }).filter(d => d.path && /^[A-Za-z]:\\$/.test(d.path));
+        resolve(list.length ? list : null);
+      });
+  });
+  // A~Z 직접 탐지 (CIM이 놓친 드라이브 보강)
+  const probe = [];
   for (let i = 65; i <= 90; i++) {
     const L = String.fromCharCode(i);
     const root = `${L}:\\`;
-    try { await fs.access(root); out.push({ name: `${L}:`, path: root }); } catch (e) {}
+    try { await fs.access(root); probe.push({ name: `${L}:`, path: root }); } catch (e) {}
   }
-  return out;
+  // CIM ∪ probe (드라이브 문자 기준 중복 제거)
+  const merged = [];
+  const seen = new Set();
+  for (const d of [...(fromPS || []), ...probe]) {
+    const key = d.path.slice(0, 2).toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key); merged.push(d);
+  }
+  merged.sort((a, b) => a.path.localeCompare(b.path));
+  return merged;
 });
 
 // 한 폴더의 하위 폴더 목록 (트리 펼침용)
