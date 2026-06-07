@@ -13,9 +13,12 @@
 
 ### 보기
 - **폴더 트리 탐색기** — 좌측에 내 PC의 드라이브(로컬·**네트워크 매핑 드라이브** 포함) → 폴더 트리. 폴더를 클릭하면 그 폴더의 이미지가 바로 로드됩니다.
+- **네트워크/NAS 탐색** — 별도 **네트워크** 노드에서 SMB 컴퓨터(예: `\\HBnas`) → 공유 폴더까지 탐색. 드라이브 문자 매핑이 없는 UNC 공유도 직접 접근.
 - **바둑판 그리드** — 폴더의 이미지를 썸네일 격자로 한눈에. 대용량 폴더도 부드럽게 스크롤되도록 **지연 썸네일 + 화면 밖 렌더링 생략**(content-visibility) 적용.
+- **보기 전환** — 썸네일(바둑판) ↔ **자세히 목록**(이름·크기·용량·생성일) 토글.
 - **클릭 = 우측 미리보기** — 선택한 이미지를 우측 패널에 즉시 미리보기(이름·해상도 표시).
-- **더블클릭 = 단독 크게보기** — 좌우 이동, 휠 줌, 창 맞춤. `목록` 버튼/`Esc`로 그리드 복귀.
+- **더블클릭 = 단독 크게보기** — 좌우 이동, 휠 줌, 창 맞춤, 드래그 팬. `목록` 버튼/`Esc`로 그리드 복귀.
+- **밝기 보정** — 단독 뷰에서 슬라이더로 간단한 밝기 조절(이미지별 자동 리셋).
 - **드래그앤드롭** — 이미지·폴더를 끌어다 놓으면 바로 열림.
 - **지원 포맷** — JPG · PNG · WebP · GIF · BMP · **SVG** · TIFF · ICO.
 
@@ -26,7 +29,8 @@
 - **파일 관리** — 이름변경, 삭제(휴지통).
 
 ### 연동
-- **탐색기 연동** — 이미지 더블클릭/우클릭으로 바로 열기 (파일 연결).
+- **탐색기 연동** — 이미지 우클릭 **"ImgView로 보기"** · 폴더 우클릭 **"ImgView로 폴더 보기"**, Windows **연결 프로그램(열기)** 등록. (기본 연결을 가로채지 않아 탐색기 썸네일은 그대로 유지.)
+- **ImageZip 연동** — 단독 뷰에서 압축 시 절감 가능한 용량(WebP 기준 추정)을 표시하고, **용량 줄이기**를 누르면 형제 앱 [ImageZip](https://github.com/homebox78)으로 넘겨 처리(미설치 시 설치 안내).
 
 > 모든 처리는 PC 내부(로컬)에서만 이루어집니다.
 
@@ -82,14 +86,16 @@ npm run dist
 ImgView/
 ├─ main.js                  # Electron 메인 프로세스
 │                           #  - 창 생성, 단일 인스턴스, 실행 인자/우클릭 이미지 수신
-│                           #  - IPC: open-files / open-folder / load-folder
-│                           #         list-drives(네트워크 포함) / list-dir
+│                           #  - IPC(파일): open-files / open-folder / load-folder / list-dir
 │                           #         save-overwrite(원본 백업) / save-files
 │                           #         rename-file / delete-file(휴지통) / show-in-folder
+│                           #  - IPC(드라이브·네트워크): list-drives / list-network / list-shares
+│                           #  - IPC(연동): imgzip-info / open-in-imgzip / open-external
 ├─ preload.js               # contextBridge로 렌더러에 안전한 imgview API 노출
 ├─ index.html               # 전체 UI + 뷰어/편집/트리 로직 (단일 파일)
-│                           #  - 폴더 트리 · 바둑판 그리드 · 우측 미리보기 · 단독 뷰
+│                           #  - 폴더 트리 · 바둑판/자세히 목록 · 우측 미리보기 · 단독 뷰
 │                           #  - 지연 썸네일(IntersectionObserver), 캔버스 편집
+│                           #  - 커스텀 셀렉트/이름변경 다이얼로그, 밝기 보정, ImageZip 바
 ├─ package.json             # 메타 + electron-builder(build) 설정
 ├─ package-lock.json
 │
@@ -105,11 +111,11 @@ ImgView/
 ├─ installerHeader.bmp      # 설치 마법사 상단 배너 (150×57)
 ├─ installerSidebar.bmp     # 설치 마법사 좌측 배너 (164×314)
 │
-├─ run.bat / start.bat      # 개발 실행 보조 스크립트
-└─ dist/                    # 빌드 산출물 (git 제외)
-   ├─ ImgView-Install-<버전>.exe   # NSIS 설치 파일
-   └─ win-unpacked/                # 압축 해제 실행본
+└─ run.bat / start.bat      # 개발 실행 보조 스크립트
 ```
+
+> `node_modules/`(의존성)와 `dist/`(빌드 산출물 — NSIS `.exe` 설치 파일·압축 해제 실행본)는
+> git에 포함되지 않습니다. `npm install` / `npm run dist` 로 언제든 다시 생성됩니다.
 
 ---
 
