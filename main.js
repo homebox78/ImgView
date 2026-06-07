@@ -26,15 +26,16 @@ async function collectImagePaths(argv) {
 }
 
 // 경로의 파일들을 읽어 렌더러로 전달 (경로 정보까지 함께 → 덮어쓰기 저장에 사용)
-async function sendFilesToRenderer(win, paths) {
-  if (!win || !paths || !paths.length) return;
+//  - replace: true 면 렌더러의 기존 목록을 비우고 교체 (폴더 트리 탐색용)
+async function sendFilesToRenderer(win, paths, replace = false) {
+  if (!win || !paths) return;
   const out = [];
   for (const p of paths) {
     try {
       out.push({ name: path.basename(p), path: p, data: await fs.readFile(p) });
     } catch (e) {}
   }
-  if (out.length) win.webContents.send('add-files', out);
+  if (out.length || replace) win.webContents.send('add-files', out, { replace });
 }
 
 function createWindow() {
@@ -167,5 +168,44 @@ ipcMain.handle('delete-file', async (event, srcPath) => {
 
 ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPath(dir); });
 ipcMain.handle('show-in-folder', async (event, p) => { if (p) shell.showItemInFolder(p); });
+
+// ===== 폴더 트리(탐색기) =====
+// 사용 가능한 드라이브 목록 (Windows)
+ipcMain.handle('list-drives', async () => {
+  const out = [];
+  for (let i = 65; i <= 90; i++) {
+    const L = String.fromCharCode(i);
+    const root = `${L}:\\`;
+    try { await fs.access(root); out.push({ name: `${L}:`, path: root }); } catch (e) {}
+  }
+  return out;
+});
+
+// 한 폴더의 하위 폴더 목록 (트리 펼침용)
+ipcMain.handle('list-dir', async (event, dir) => {
+  try {
+    const ents = await fs.readdir(dir, { withFileTypes: true });
+    return ents
+      .filter(d => {
+        try { return d.isDirectory() && !d.name.startsWith('$') && !d.name.startsWith('.'); }
+        catch { return false; }
+      })
+      .map(d => ({ name: d.name, path: path.join(dir, d.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  } catch (e) { return []; }
+});
+
+// 한 폴더의 이미지를 모두 읽어 렌더러로 교체 전달 (트리에서 폴더 클릭)
+ipcMain.handle('load-folder', async (event, dir) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  try {
+    const paths = [];
+    for (const e of await fs.readdir(dir)) {
+      if (IMG_RE.test(e)) paths.push(path.join(dir, e));
+    }
+    await sendFilesToRenderer(win, paths.sort((a, b) => a.localeCompare(b, 'ko')), true);
+    return { ok: true, count: paths.length, dir };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
 
 async function exists(p) { try { await fs.access(p); return true; } catch { return false; } }

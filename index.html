@@ -58,25 +58,50 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 /* 본문 */
 .body{flex:1;position:relative;display:flex;min-height:0}
 
-/* 빈 화면(드롭존) */
-.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:18px;text-align:center;cursor:pointer;z-index:8}
-.empty.drag{background:radial-gradient(ellipse at center,var(--accent-glow),transparent 70%)}
+/* 빈 화면(드롭존) — 그리드 영역 안에 표시 */
+.drophint{margin:auto;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;text-align:center;cursor:pointer}
+.gridscreen.drag .grid{background:radial-gradient(ellipse at center,var(--accent-glow),transparent 70%)}
 .drop-ico{width:74px;height:74px;border-radius:20px;
   background:linear-gradient(150deg,var(--surface-3),var(--surface));
   border:1px solid var(--border);display:grid;place-items:center;animation:floaty 3.6s ease-in-out infinite}
-.empty.drag .drop-ico{animation:none;border-color:var(--accent)}
+.gridscreen.drag .drop-ico{animation:none;border-color:var(--accent)}
 .drop-ico svg{width:34px;height:34px;color:var(--accent)}
 .drop-title{font-size:19px;font-weight:700}
 .drop-title em{font-style:normal;color:var(--accent)}
 .drop-sub{font-size:13px;color:var(--text-dim);margin-top:6px}
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 
-/* === 그리드 화면(바둑판) + 우측 미리보기 === */
+/* === 그리드 화면: [폴더 트리] [바둑판] [미리보기] === */
 .gridscreen{flex:1;display:flex;min-height:0}
+
+/* 좌측 폴더 트리(탐색기) */
+.tree{width:240px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
+  padding:8px 6px;background:var(--bg-soft);font-size:12.5px}
+.tree-head{display:flex;align-items:center;gap:6px;padding:4px 8px 8px;
+  font-size:11px;font-weight:700;color:var(--text-faint);letter-spacing:.02em}
+.tnode{}
+.trow{display:flex;align-items:center;gap:5px;padding:4px 6px;border-radius:7px;
+  cursor:pointer;color:var(--text-faint);white-space:nowrap;line-height:1.3}
+.trow:hover{background:var(--surface-2);color:var(--text)}
+.trow.sel{background:var(--surface-3);color:var(--text)}
+.tarrow{width:13px;height:13px;flex:none;display:grid;place-items:center;
+  color:var(--text-faint);transition:transform .15s var(--ease)}
+.tarrow svg{width:9px;height:9px}
+.tarrow.open{transform:rotate(90deg)}
+.tarrow.leaf{visibility:hidden}
+.ticon{width:15px;height:15px;flex:none;color:var(--accent);display:grid;place-items:center}
+.ticon svg{width:15px;height:15px}
+.tlabel{overflow:hidden;text-overflow:ellipsis}
+.tchildren{margin-left:13px;display:none}
+.tchildren.open{display:block}
+
+/* 가운데 바둑판 */
+.gridmain{flex:1;display:flex;flex-direction:column;min-width:0}
 .grid{flex:1;overflow-y:auto;padding:18px;display:grid;
   grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
   grid-auto-rows:min-content;gap:16px;align-content:start}
+.grid.empty-mode{display:flex}
 .tile{cursor:pointer;border-radius:14px;overflow:hidden;background:var(--surface);
   border:1px solid var(--border-soft);transition:.16s var(--ease)}
 .tile:hover{transform:translateY(-3px);border-color:var(--surface-3);box-shadow:var(--shadow-soft)}
@@ -195,20 +220,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
   <!-- 본문 -->
   <div class="body" id="body">
-    <!-- 빈 화면 -->
-    <div class="empty" id="empty">
-      <div class="drop-ico">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
-        </svg>
+    <!-- 폴더 트리 + 바둑판 + 우측 미리보기 -->
+    <div class="gridscreen" id="gridScreen">
+      <aside class="tree" id="tree">
+        <div class="tree-head">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          폴더
+        </div>
+      </aside>
+      <div class="gridmain">
+        <div class="grid" id="grid"></div>
       </div>
-      <div><div class="drop-title">이미지나 폴더를 <em>여기에</em> 끌어다 놓으세요</div>
-        <div class="drop-sub">JPG · PNG · WebP · GIF · BMP · 또는 클릭해서 열기</div></div>
-    </div>
-
-    <!-- 그리드(바둑판) + 우측 미리보기 -->
-    <div class="gridscreen" id="gridScreen" style="display:none">
-      <div class="grid" id="grid"></div>
       <aside class="preview" id="preview"></aside>
     </div>
 
@@ -269,22 +291,27 @@ const API = window.imgview || null;
 
 let images = [];          // {name, path, url}
 let idx = 0;              // 선택/표시 중인 인덱스
-let mode = 'empty';       // 'empty' | 'grid' | 'single'
+let mode = 'grid';        // 'grid' | 'single'
 let rotation = 0, zoom = 1, fitMode = true;
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function current(){return images[idx]||null;}
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function getDims(url){return new Promise(res=>{const im=new Image();im.onload=()=>res({w:im.naturalWidth,h:im.naturalHeight});im.src=url;});}
+function el(t,c){const e=document.createElement(t);if(c)e.className=c;return e;}
 
 // ---- 모드 전환 ----
 function setMode(m){
   mode=m;
-  $('#empty').style.display      = m==='empty'  ? 'flex':'none';
   $('#gridScreen').style.display = m==='grid'   ? 'flex':'none';
   $('#singleScreen').style.display = m==='single' ? 'flex':'none';
   $('#zoomctl').style.visibility = m==='single' ? 'visible':'hidden';
   updateStatus();
+}
+
+function clearImages(){
+  images.forEach(im=>{try{URL.revokeObjectURL(im.url);}catch(e){}});
+  images=[]; idx=0;
 }
 
 // ---- 파일 추가 ----
@@ -294,23 +321,80 @@ function addFiles(list){
     const url = f.url || URL.createObjectURL(f.blob || f);
     images.push({ name:f.name, path:f.path||null, url });
   }
-  if(mode==='empty') setMode('grid');
-  if(mode!=='single') renderGrid();
-  if(wasEmpty) select(0); else if(mode==='grid') { renderGrid(); select(idx); }
+  if(mode!=='single'){ setMode('grid'); renderGrid(); }
+  if(!images.length){ renderPreview(); setBtns(false); updateStatus(); return; }
+  if(wasEmpty) select(0); else if(mode==='grid') select(Math.min(idx,images.length-1));
 }
 
 // ---- 그리드(바둑판) ----
+const DROP_HINT=`<div class="drophint" id="dropHint">
+  <div class="drop-ico">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+  </div>
+  <div><div class="drop-title">이미지나 폴더를 <em>여기에</em> 끌어다 놓으세요</div>
+    <div class="drop-sub">왼쪽 폴더 트리에서 폴더를 고르거나 · 클릭해서 열기</div></div>
+</div>`;
 function renderGrid(){
-  $('#grid').innerHTML = images.map((im,i)=>`
+  const g=$('#grid');
+  if(!images.length){
+    g.classList.add('empty-mode'); g.innerHTML=DROP_HINT;
+    $('#dropHint').onclick=()=>$('#openBtn').click();
+    return;
+  }
+  g.classList.remove('empty-mode');
+  g.innerHTML = images.map((im,i)=>`
     <div class="tile ${i===idx?'active':''}" data-i="${i}">
       <div class="tile-img"><img src="${im.url}" loading="lazy" draggable="false"></div>
       <div class="tile-name" title="${esc(im.name)}">${esc(im.name)}</div>
     </div>`).join('');
-  $('#grid').querySelectorAll('.tile').forEach(t=>{
+  g.querySelectorAll('.tile').forEach(t=>{
     const i=+t.dataset.i;
     t.onclick=()=>select(i);
     t.ondblclick=()=>openSingle(i);
   });
+}
+
+// ---- 폴더 트리(탐색기) ----
+const FOLDER_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+const CARET_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+let curFolder=null;
+async function initTree(){
+  if(!API||!API.listDrives)return;
+  const drives=await API.listDrives();
+  const tree=$('#tree');
+  drives.forEach(d=>tree.appendChild(makeTreeNode(d.name,d.path)));
+}
+function makeTreeNode(name,p){
+  const node=el('div','tnode');
+  const row=el('div','trow'); row.dataset.path=p;
+  const arrow=el('span','tarrow'); arrow.innerHTML=CARET_SVG;
+  const icon=el('span','ticon'); icon.innerHTML=FOLDER_SVG;
+  const label=el('span','tlabel'); label.textContent=name;
+  row.append(arrow,icon,label);
+  const kids=el('div','tchildren');
+  node.append(row,kids);
+  let loaded=false, open=false;
+  arrow.onclick=async e=>{
+    e.stopPropagation();
+    open=!open; arrow.classList.toggle('open',open); kids.classList.toggle('open',open);
+    if(open&&!loaded){
+      loaded=true;
+      const subs=await API.listDir(p);
+      if(!subs.length){ arrow.classList.add('leaf'); }
+      subs.forEach(s=>kids.appendChild(makeTreeNode(s.name,s.path)));
+    }
+  };
+  row.onclick=async()=>{
+    document.querySelectorAll('.trow.sel').forEach(r=>r.classList.remove('sel'));
+    row.classList.add('sel');
+    curFolder=p;
+    toast('폴더 읽는 중…');
+    const r=await API.loadFolder(p);
+    if(r&&r.ok){ toast(r.count?`${name} · ${r.count}장`:`${name} · 이미지 없음`); }
+    else toast('폴더를 열 수 없습니다');
+  };
+  return node;
 }
 
 // 클릭만 → 선택 + 우측 미리보기
@@ -477,7 +561,7 @@ $('#delBtn').onclick=async()=>{
   if(!confirm(`${im.name}을(를) 삭제할까요? (휴지통으로 이동)`))return;
   if(API&&im.path){const r=await API.deleteFile(im.path);if(!r.ok){toast(r.error);return;}}
   URL.revokeObjectURL(im.url); images.splice(idx,1);
-  if(!images.length){ setMode('empty'); setBtns(false); document.title='ImgView'; toast('삭제 완료'); return; }
+  if(!images.length){ setMode('grid'); renderGrid(); renderPreview(); setBtns(false); document.title='ImgView'; toast('삭제 완료'); return; }
   idx=Math.min(idx,images.length-1);
   if(mode==='single') showSingle(); else { renderGrid(); select(idx); }
   toast('삭제 완료');
@@ -493,7 +577,6 @@ $('#fsBtn').onclick=()=>{
 // ---- 열기 ----
 $('#openBtn').onclick=async()=>{ if(API){await API.openFiles();} else $('#fileInput').click(); };
 $('#folderBtn').onclick=async()=>{ if(API){await API.openFolder();} else toast('폴더 열기는 데스크톱 빌드에서 가능합니다'); };
-$('#empty').onclick=()=>$('#openBtn').click();
 
 // 웹 폴백 파일 입력
 const fi=document.createElement('input');fi.type='file';fi.accept='image/*';fi.multiple=true;fi.hidden=true;fi.id='fileInput';
@@ -502,16 +585,17 @@ fi.onchange=e=>{const fs=[...e.target.files].map(f=>({name:f.name,blob:f}));addF
 
 // 드래그앤드롭 (본문 전체)
 const bodyEl=$('#body');
-['dragenter','dragover'].forEach(ev=>bodyEl.addEventListener(ev,e=>{e.preventDefault();$('#empty').classList.add('drag');}));
-['dragleave','drop'].forEach(ev=>bodyEl.addEventListener(ev,e=>{e.preventDefault();$('#empty').classList.remove('drag');}));
+['dragenter','dragover'].forEach(ev=>bodyEl.addEventListener(ev,e=>{e.preventDefault();if(mode==='grid')$('#gridScreen').classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>bodyEl.addEventListener(ev,e=>{e.preventDefault();$('#gridScreen').classList.remove('drag');}));
 bodyEl.addEventListener('drop',e=>{
   const fs=[...e.dataTransfer.files].filter(f=>/^image\//.test(f.type)).map(f=>({name:f.name,blob:f}));
-  if(fs.length)addFiles(fs);
+  if(fs.length){ if(mode==='single')backToGrid(); addFiles(fs); }
 });
 
-// 데스크톱: main → renderer 파일 수신
+// 데스크톱: main → renderer 파일 수신 (opts.replace=true면 기존 목록 교체)
 if(API&&API.onAddFiles){
-  API.onAddFiles(files=>{
+  API.onAddFiles((files,opts)=>{
+    if(opts&&opts.replace){ clearImages(); if(mode==='single')setMode('grid'); }
     const list=files.map(f=>({name:f.name,path:f.path,url:URL.createObjectURL(new Blob([f.data]))}));
     addFiles(list);
   });
@@ -549,6 +633,13 @@ document.addEventListener('keydown',e=>{
     else if(e.key==='F2')$('#renameBtn').click();
   }
 });
+
+// ---- 초기화 ----
+if(!API) $('#tree').style.display='none';   // 웹에서는 트리 숨김
+setMode('grid');
+renderGrid();
+renderPreview();
+initTree();
 </script>
 </body>
 </html>
