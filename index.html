@@ -186,7 +186,21 @@ select{-webkit-appearance:none;appearance:none;cursor:pointer;padding-right:38px
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ccd2dc' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
   background-repeat:no-repeat;background-position:right 13px center}
 .inp:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+/* 숫자 입력 커스텀 상하 버튼 */
+.inp[type=number]{-moz-appearance:textfield}
+.inp[type=number]::-webkit-outer-spin-button,
+.inp[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.num{position:relative;width:100%}
+.num>.inp{padding-right:36px}
+.num-btns{position:absolute;top:4px;right:4px;bottom:4px;width:26px;display:flex;flex-direction:column;gap:3px}
+.num-btns button{flex:1;border:1px solid var(--border);background:var(--surface-3);color:var(--text-dim);
+  border-radius:6px;cursor:pointer;display:grid;place-items:center;padding:0;
+  transition:border-color .14s var(--ease),color .14s var(--ease),background .14s var(--ease)}
+.num-btns button:hover{border-color:var(--accent);color:var(--text);background:var(--surface-2)}
+.num-btns button:active{background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:var(--accent-ink);border-color:var(--accent)}
+.num-btns svg{width:11px;height:11px;display:block}
 .row2{display:flex;gap:10px}
+.row2 .num{flex:1}
 .dlg-actions{display:flex;gap:10px;margin-top:20px}
 .dlg-actions button{flex:1;border:none;cursor:pointer;font-family:inherit;font-weight:700;
   font-size:13.5px;padding:12px;border-radius:11px}
@@ -1142,6 +1156,36 @@ $('#vList').onclick=()=>setView('list');
 if(!API) $('#tree').style.display='none';   // 웹에서는 트리 숨김
 else $('#pathInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();openPathInput();} });
 enhanceSelect($('#rzMode')); enhanceSelect($('#cvFmt'));   // 커스텀 드롭다운
+
+// 숫자 입력: 네이티브 스피너 → 테마에 맞는 커스텀 상하 버튼
+const NUM_UP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+const NUM_DN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+function enhanceNumber(inp){
+  if(inp._numEnhanced)return; inp._numEnhanced=true;
+  const wrap=el('div','num');
+  inp.parentNode.insertBefore(wrap,inp); wrap.appendChild(inp);
+  const btns=el('div','num-btns');
+  const up=el('button'); up.type='button'; up.tabIndex=-1; up.innerHTML=NUM_UP;
+  const dn=el('button'); dn.type='button'; dn.tabIndex=-1; dn.innerHTML=NUM_DN;
+  btns.append(up,dn); wrap.appendChild(btns);
+  const step=()=>parseFloat(inp.step)||1;
+  const bump=d=>{
+    let v=parseFloat(inp.value); if(isNaN(v))v=0; v=+(v+d*step()).toFixed(6);
+    if(inp.min!==''&&v<+inp.min)v=+inp.min; if(inp.max!==''&&v>+inp.max)v=+inp.max;
+    inp.value=v;
+    inp.dispatchEvent(new Event('input',{bubbles:true}));
+    inp.dispatchEvent(new Event('change',{bubbles:true}));
+  };
+  // 누르고 있으면 반복
+  let timer=null, hold=null;
+  const start=d=>{ bump(d); hold=setTimeout(()=>{ timer=setInterval(()=>bump(d),70); },380); };
+  const stop=()=>{ clearTimeout(hold); clearInterval(timer); timer=hold=null; };
+  [['up',up,1],['dn',dn,-1]].forEach(([,b,d])=>{
+    b.addEventListener('mousedown',e=>{e.preventDefault();start(d);});
+    b.addEventListener('mouseup',stop); b.addEventListener('mouseleave',stop);
+  });
+}
+document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
 if(API&&API.imgzipInfo){ API.imgzipInfo().then(info=>{ imgzip=info||imgzip; }); }
 setMode('grid');
 renderGrid();
