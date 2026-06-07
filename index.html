@@ -119,6 +119,7 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
   content-visibility:auto;contain-intrinsic-size:auto 200px}
 .tile:hover{border-color:var(--surface-3);box-shadow:var(--shadow-soft)}
 .tile.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 12px 28px -14px var(--accent-glow)}
+.tile.focus:not(.active){border-color:var(--text-faint)}
 .tile-img{width:100%;aspect-ratio:1/1;background:#0a0b0e;display:grid;place-items:center;overflow:hidden}
 .tile-img img{width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity .2s var(--ease)}
 .tile-img img.loaded{opacity:1}
@@ -191,6 +192,25 @@ select{-webkit-appearance:none;appearance:none;cursor:pointer;padding-right:38px
   font-size:13.5px;padding:12px;border-radius:11px}
 .dlg-actions .ghost{background:var(--surface-3);color:var(--text-dim)}
 .dlg-actions .primary{background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:var(--accent-ink)}
+/* 다중 이름변경 */
+.dialog-wide{width:min(560px,calc(100% - 40px))}
+.dim-cnt{font-size:12.5px;color:var(--text-faint);font-weight:600;margin-left:6px}
+.br-tokens{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 14px}
+.br-hint{font-size:12px;color:var(--text-faint);margin-right:2px}
+.chip{background:var(--surface-3);border:1px solid var(--border);color:var(--text-dim);
+  font-family:inherit;font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer;
+  transition:border-color .14s,color .14s}
+.chip:hover{border-color:var(--accent);color:var(--text)}
+.br-row{display:flex;gap:10px}
+.br-small{flex:1}
+.br-preview{max-height:200px;overflow:auto;background:var(--bg-soft);border:1px solid var(--border);
+  border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.7}
+.br-preview .br-line{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.br-preview .br-old{color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;text-align:right}
+.br-preview .br-arr{color:var(--text-faint);flex:none}
+.br-preview .br-new{color:var(--accent);overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.br-preview .br-dup{color:#ff6b6b}
+.br-preview .br-more{color:var(--text-faint);text-align:center;padding-top:4px}
 input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:99px;background:var(--surface-3)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
   background:var(--accent);cursor:pointer;box-shadow:0 0 0 4px var(--accent-glow)}
@@ -410,6 +430,34 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   </div>
 </div>
 
+<!-- 다중 이름변경 다이얼로그 -->
+<div class="scrim" id="batchScrim">
+  <div class="dialog dialog-wide">
+    <h3>여러 파일 이름 변경 <span id="brCount" class="dim-cnt"></span></h3>
+    <div class="field">
+      <label>이름 형식</label>
+      <input class="inp" id="brPattern" type="text" spellcheck="false" placeholder="예: 여행_<번호:3>  또는  <날짜>_<번호>">
+    </div>
+    <div class="br-tokens">
+      <span class="br-hint">변수 넣기:</span>
+      <button type="button" class="chip" data-tok="<번호>">번호</button>
+      <button type="button" class="chip" data-tok="<번호:3>">번호(001)</button>
+      <button type="button" class="chip" data-tok="<날짜>">날짜</button>
+      <button type="button" class="chip" data-tok="<시간>">시간</button>
+      <button type="button" class="chip" data-tok="<년>">년</button>
+      <button type="button" class="chip" data-tok="<월>">월</button>
+      <button type="button" class="chip" data-tok="<일>">일</button>
+      <button type="button" class="chip" data-tok="<원본>">원본이름</button>
+    </div>
+    <div class="br-row">
+      <div class="field br-small"><label>시작 번호</label><input class="inp" id="brStart" type="number" value="1" min="0"></div>
+      <div class="field br-small"><label>증가</label><input class="inp" id="brStep" type="number" value="1" min="1"></div>
+    </div>
+    <div class="field"><label>미리보기</label><div class="br-preview" id="brPreview"></div></div>
+    <div class="dlg-actions"><button class="ghost" data-close>취소</button><button class="primary" id="brApply">모두 변경</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -417,7 +465,9 @@ const $ = s => document.querySelector(s);
 const API = window.imgview || null;
 
 let images = [];          // {name, path, url, size, created}
-let idx = 0;              // 선택/표시 중인 인덱스
+let idx = 0;              // 선택/표시(포커스) 중인 인덱스
+let selected = new Set(); // 다중 선택된 인덱스들
+let anchorIdx = 0;        // Shift 범위 선택 기준점
 let mode = 'grid';        // 'grid' | 'single'
 let viewMode = 'thumb';   // 'thumb' | 'list'
 let brightness = 100;     // 단독뷰 밝기(%)
@@ -499,7 +549,7 @@ function setMode(m){
 function clearImages(){
   if(thumbObserver){thumbObserver.disconnect();thumbObserver=null;}
   images.forEach(im=>{try{URL.revokeObjectURL(im.url);}catch(e){} try{if(im.thumb)URL.revokeObjectURL(im.thumb);}catch(e){}});
-  images=[]; idx=0;
+  images=[]; idx=0; selected.clear(); anchorIdx=0;
 }
 
 // ---- 파일 추가 ----
@@ -539,18 +589,18 @@ function renderGrid(){
 }
 function buildTiles(g){
   g.innerHTML = images.map((im,i)=>`
-    <div class="tile ${i===idx?'active':''}" data-i="${i}">
+    <div class="tile ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
       <div class="tile-img"><img data-i="${i}" draggable="false" alt=""></div>
       <div class="tile-name" title="${esc(im.name)}">${esc(im.name)}</div>
     </div>`).join('');
   g.querySelectorAll('.tile').forEach(t=>{
-    const i=+t.dataset.i; t.onclick=()=>select(i); t.ondblclick=()=>openSingle(i);
+    const i=+t.dataset.i; t.onclick=(e)=>select(i,e); t.ondblclick=()=>openSingle(i);
   });
 }
 function buildListRows(g){
   g.innerHTML = `<div class="dl-head"><span></span><span>이름</span><span>크기</span><span>용량</span><span>생성일</span></div>`
    + images.map((im,i)=>`
-    <div class="dl-row ${i===idx?'active':''}" data-i="${i}">
+    <div class="dl-row ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
       <span class="dl-thumb"><img data-i="${i}" draggable="false" alt=""></span>
       <span class="dl-name" title="${esc(im.name)}">${esc(im.name)}</span>
       <span class="dl-dims" id="dld${i}">${im.dw?im.dw+'×'+im.dh:'…'}</span>
@@ -558,7 +608,7 @@ function buildListRows(g){
       <span class="dl-date">${fmtDate(im.created)}</span>
     </div>`).join('');
   g.querySelectorAll('.dl-row').forEach(r=>{
-    const i=+r.dataset.i; r.onclick=()=>select(i); r.ondblclick=()=>openSingle(i);
+    const i=+r.dataset.i; r.onclick=(e)=>select(i,e); r.ondblclick=()=>openSingle(i);
   });
 }
 // 보이는(근처) 항목만 썸네일 생성(+자세히 보기는 해상도도 채움) → 스크롤 부드럽게
@@ -661,14 +711,44 @@ function makeTreeNode(name,p,opts,depth){
   return node;
 }
 
-// 클릭만 → 선택 + 우측 미리보기
-function select(i){
-  idx=i;
-  $('#grid').querySelectorAll('.tile,.dl-row').forEach(t=>t.classList.toggle('active',+t.dataset.i===i));
+// 클릭만 → 선택 + 우측 미리보기 (Ctrl=토글, Shift=범위)
+function select(i, ev){
+  ev = ev || {};
+  if(ev.shiftKey){
+    if(!(ev.ctrlKey||ev.metaKey)) selected.clear();
+    const a=Math.min(anchorIdx,i), b=Math.max(anchorIdx,i);
+    for(let k=a;k<=b;k++) selected.add(k);
+    idx=i;
+  } else if(ev.ctrlKey||ev.metaKey){
+    if(selected.has(i)) selected.delete(i); else selected.add(i);
+    idx=i; anchorIdx=i;
+  } else {
+    selected.clear(); selected.add(i); idx=i; anchorIdx=i;
+  }
+  syncSelClasses();
   const active=$(`.tile[data-i="${i}"],.dl-row[data-i="${i}"]`); if(active) active.scrollIntoView({block:'nearest'});
   renderPreview();
   setBtns(true);
   updateStatus();
+}
+function syncSelClasses(){
+  $('#grid').querySelectorAll('.tile,.dl-row').forEach(t=>{
+    const k=+t.dataset.i;
+    t.classList.toggle('active', selected.has(k));
+    t.classList.toggle('focus', k===idx);
+  });
+}
+// 전체 선택
+function selectAll(){
+  selected.clear();
+  for(let i=0;i<images.length;i++) selected.add(i);
+  syncSelClasses(); renderPreview(); setBtns(true); updateStatus();
+}
+// 선택된(경로 있는) 인덱스 목록 — 없으면 포커스 1개로 폴백
+function selIndices(){
+  let arr=[...selected].filter(i=>images[i]&&images[i].path);
+  if(!arr.length && current() && current().path) arr=[idx];
+  return arr.sort((a,b)=>a-b);
 }
 function renderPreview(){
   const im=current(), p=$('#preview');
@@ -751,7 +831,9 @@ function updateStatus(){
     const im=current(),el=$('#mainImg');
     $('#statLeft').innerHTML=`<b>[${idx+1}/${images.length}]</b> ${esc(im.name)} — ${el.naturalWidth}×${el.naturalHeight}`;
   }else{
-    $('#statLeft').innerHTML=`<b>${images.length}장</b> · 이미지를 더블클릭하면 크게 볼 수 있어요`;
+    const n=selected.size;
+    if(n>1) $('#statLeft').innerHTML=`<b>${n}개 선택됨</b> · 이름변경으로 한 번에 바꿀 수 있어요 (Ctrl/Shift+클릭, Ctrl+A 전체)`;
+    else $('#statLeft').innerHTML=`<b>${images.length}장</b> · 더블클릭=크게보기 · Ctrl/Shift+클릭으로 여러 개 선택`;
   }
 }
 function setBtns(on){['rotL','rotR','resizeBtn','convBtn','renameBtn','delBtn'].forEach(id=>$('#'+id).disabled=!on);}
@@ -864,7 +946,10 @@ $('#cvApply').onclick=async()=>{
 
 // ---- 이름변경 (Electron은 prompt() 미지원 → 커스텀 다이얼로그) ----
 $('#renameBtn').onclick=()=>{
-  const im=current();if(!im||!API||!im.path){toast('데스크톱 빌드에서 가능합니다');return;}
+  if(!API){toast('데스크톱 빌드에서 가능합니다');return;}
+  const sel=selIndices();
+  if(mode==='grid' && sel.length>1){ openBatchRename(sel); return; }   // 여러 개 → 일괄 변경
+  const im=current();if(!im||!im.path){toast('데스크톱 빌드에서 가능합니다');return;}
   const inp=$('#rnInput'); inp.value=im.name;
   $('#renameScrim').classList.add('show');
   setTimeout(()=>{ inp.focus(); const dot=im.name.lastIndexOf('.'); inp.setSelectionRange(0, dot>0?dot:im.name.length); },50);
@@ -882,6 +967,92 @@ async function doRename(){
 }
 $('#rnApply').onclick=doRename;
 $('#rnInput')&&$('#rnInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();doRename();} });
+
+// ---- 다중 이름변경 (번호/날짜/시간 등 변수 지원) ----
+let batchSel=[];
+const pad=(v,n)=>String(v).padStart(n,'0');
+// 패턴 + 순번(seq) + 원본 + 시각(now) → 새 파일명
+function applyTokens(pattern, seq, im, now){
+  const ext=(im.name.match(/\.[^.]+$/)||[''])[0];
+  const base=im.name.slice(0, im.name.length-ext.length);
+  const Y=now.getFullYear(), Mo=pad(now.getMonth()+1,2), D=pad(now.getDate(),2);
+  const H=pad(now.getHours(),2), Mi=pad(now.getMinutes(),2), S=pad(now.getSeconds(),2);
+  let out=String(pattern)
+    .replace(/<번호:(\d+)>/g,(_,d)=>pad(seq,+d))
+    .replace(/<번호>/g, String(seq))
+    .replace(/<날짜>/g, `${Y}${Mo}${D}`)
+    .replace(/<시간>/g, `${H}${Mi}${S}`)
+    .replace(/<년>/g, String(Y)).replace(/<월>/g, Mo).replace(/<일>/g, D)
+    .replace(/<시>/g, H).replace(/<분>/g, Mi).replace(/<초>/g, S)
+    .replace(/<원본>/g, base)
+    .replace(/#+/g, m=>pad(seq,m.length));   // bare # 도 번호로
+  // 윈도우 파일명 금지문자 정리
+  out=out.replace(/[\\/:*?"<>|]/g,'_').trim();
+  if(!out) out=base;
+  return out+ext;
+}
+function batchNames(){
+  const pat=$('#brPattern').value||'';
+  let seq=parseInt($('#brStart').value,10); if(isNaN(seq))seq=1;
+  let step=parseInt($('#brStep').value,10); if(isNaN(step)||step<1)step=1;
+  const now=new Date();
+  return batchSel.map((i,k)=>({ i, old:images[i].name, neu:applyTokens(pat, seq+k*step, images[i], now) }));
+}
+function renderBatchPreview(){
+  const rows=batchNames();
+  // 중복 검사(같은 폴더 내 새 이름끼리)
+  const seen={}; rows.forEach(r=>{seen[r.neu]=(seen[r.neu]||0)+1;});
+  const max=8;
+  let html=rows.slice(0,max).map(r=>{
+    const dup=seen[r.neu]>1;
+    return `<div class="br-line"><span class="br-old">${esc(r.old)}</span><span class="br-arr">→</span><span class="br-new ${dup?'br-dup':''}">${esc(r.neu)}${dup?' ⚠':''}</span></div>`;
+  }).join('');
+  if(rows.length>max) html+=`<div class="br-more">…외 ${rows.length-max}개</div>`;
+  $('#brPreview').innerHTML=html;
+}
+function openBatchRename(sel){
+  batchSel=sel;
+  $('#brCount').textContent=`(${sel.length}개)`;
+  // 공통 접두어를 추정해 기본 패턴 제안
+  if(!$('#brPattern').value) $('#brPattern').value='<원본>';
+  $('#renameScrim').classList.remove('show');
+  $('#batchScrim').classList.add('show');
+  renderBatchPreview();
+  setTimeout(()=>$('#brPattern').focus(),50);
+}
+['#brPattern','#brStart','#brStep'].forEach(s=>{ const e=$(s); if(e) e.addEventListener('input',renderBatchPreview); });
+document.querySelectorAll('#batchScrim .chip').forEach(b=>{
+  b.onclick=()=>{ const inp=$('#brPattern'); const t=b.dataset.tok;
+    const s=inp.selectionStart??inp.value.length, en=inp.selectionEnd??inp.value.length;
+    inp.value=inp.value.slice(0,s)+t+inp.value.slice(en);
+    const pos=s+t.length; inp.focus(); inp.setSelectionRange(pos,pos); renderBatchPreview();
+  };
+});
+$('#brApply').onclick=async()=>{
+  const rows=batchNames();
+  closeDialogs();
+  if(!rows.length)return;
+  let ok=0, fail=0;
+  // 임시명 2단계 처리로 순환 충돌(A↔B) 방지
+  const tmpSuffix='.imgview_tmp_';
+  // 1단계: 임시 이름으로
+  for(let k=0;k<rows.length;k++){
+    const im=images[rows[k].i];
+    const tmp=tmpSuffix+k+(im.name.match(/\.[^.]+$/)||[''])[0];
+    const r=await API.renameFile({srcPath:im.path,newName:tmp});
+    if(r.ok){ im.path=r.path; im._tmp=true; } else { im._tmp=false; }
+  }
+  // 2단계: 최종 이름으로
+  for(let k=0;k<rows.length;k++){
+    const im=images[rows[k].i];
+    if(im._tmp===false){ fail++; delete im._tmp; continue; }
+    const r=await API.renameFile({srcPath:im.path,newName:rows[k].neu});
+    if(r.ok){ im.name=rows[k].neu; im.path=r.path; ok++; } else { fail++; }
+    delete im._tmp;
+  }
+  renderGrid(); if(mode==='grid'){ syncSelClasses(); renderPreview(); } updateStatus();
+  toast(fail? `${ok}개 변경 · ${fail}개 실패` : `${ok}개 이름변경 완료`);
+};
 $('#delBtn').onclick=async()=>{
   const im=current();if(!im)return;
   if(!confirm(`${im.name}을(를) 삭제할까요? (휴지통으로 이동)`))return;
@@ -952,10 +1123,11 @@ document.addEventListener('keydown',e=>{
     else if(e.ctrlKey&&e.key==='r'){e.preventDefault();$('#resizeBtn').click();}
     else if(e.ctrlKey&&e.key==='e'){e.preventDefault();$('#convBtn').click();}
   }else if(mode==='grid'){
-    if(e.key==='ArrowRight'||e.key==='ArrowDown')select(Math.min(idx+1,images.length-1));
-    else if(e.key==='ArrowLeft'||e.key==='ArrowUp')select(Math.max(idx-1,0));
-    else if(e.key==='Home')select(0);
-    else if(e.key==='End')select(images.length-1);
+    if(e.ctrlKey&&(e.key==='a'||e.key==='A')){e.preventDefault();selectAll();}
+    else if(e.key==='ArrowRight'||e.key==='ArrowDown')select(Math.min(idx+1,images.length-1),e);
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp')select(Math.max(idx-1,0),e);
+    else if(e.key==='Home')select(0,e);
+    else if(e.key==='End')select(images.length-1,e);
     else if(e.key==='Enter'||e.key===' '){e.preventDefault();openSingle(idx);}
     else if(e.key==='Delete')$('#delBtn').click();
     else if(e.key==='F2')$('#renameBtn').click();
