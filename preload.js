@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('imgview', {
   saveFiles:     (payload) => ipcRenderer.invoke('save-files', payload),
   renameFile:    (payload) => ipcRenderer.invoke('rename-file', payload),
   deleteFile:    (p)       => ipcRenderer.invoke('delete-file', p),
+  printImage:    (payload) => ipcRenderer.invoke('print-image', payload),
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),
   openExternal:  (u)       => ipcRenderer.invoke('open-external', u),

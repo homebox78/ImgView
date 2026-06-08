@@ -2,6 +2,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
+const os = require('os');
 const { execFile } = require('child_process');
 
 let mainWin = null;
@@ -167,6 +168,39 @@ ipcMain.handle('rename-file', async (event, { srcPath, newName }) => {
 ipcMain.handle('delete-file', async (event, srcPath) => {
   try { await shell.trashItem(srcPath); return { ok: true }; }
   catch (e) { return { ok: false, error: String(e) }; }
+});
+
+// 인쇄: 임시 HTML(이미지 한 장)을 숨김 창에 띄워 OS 인쇄 대화상자로 출력
+//  - fit: 'fit'(용지에 맞춤) | 'orig'(원본 크기)  / landscape: 가로 방향 여부
+ipcMain.handle('print-image', async (event, { dataUrl, fit, landscape }) => {
+  if (!dataUrl) return { ok: false, error: 'no-image' };
+  let pw = null, tmp = null;
+  try {
+    const imgCss = fit === 'orig' ? '' : 'max-width:100%;max-height:100%;width:auto;height:auto;';
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+@page{size:${landscape ? 'landscape' : 'portrait'};margin:10mm}
+html,body{margin:0;padding:0;width:100%;height:100%}
+body{display:flex;align-items:center;justify-content:center;overflow:hidden}
+img{display:block;${imgCss}}
+</style></head><body><img src="${dataUrl}"></body></html>`;
+    tmp = path.join(os.tmpdir(), `imgview_print_${Date.now()}.html`);
+    await fs.writeFile(tmp, html, 'utf8');
+    pw = new BrowserWindow({ show: false, webPreferences: {} });
+    await pw.loadFile(tmp);
+    // 이미지 디코드 완료까지 대기 (인쇄 시점에 레이아웃이 비어있지 않도록)
+    await pw.webContents.executeJavaScript(
+      'new Promise(r=>{const i=document.images[0];if(!i||i.complete)return r();i.onload=i.onerror=()=>r();})');
+    const result = await new Promise((resolve) => {
+      pw.webContents.print({ landscape: !!landscape, printBackground: false },
+        (success, reason) => resolve({ ok: success, error: success ? null : (reason || 'canceled') }));
+    });
+    return result;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  } finally {
+    try { if (pw && !pw.isDestroyed()) pw.close(); } catch (e) {}
+    if (tmp) fs.unlink(tmp).catch(() => {});
+  }
 });
 
 ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPath(dir); });
