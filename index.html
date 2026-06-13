@@ -332,6 +332,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .crop-box::after{content:'';position:absolute;inset:0;border:1px dashed rgba(255,255,255,.6);pointer-events:none}
 .crop-bar{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-top:1px solid var(--border)}
 .crop-bar #cropInfo{color:var(--text-faint);font-size:12.5px;margin-right:auto}
+/* 밝기·대비·채도 보정 미리보기 */
+.adj-preview{height:190px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
+  display:grid;place-items:center;overflow:hidden;margin-bottom:16px}
+.adj-preview img{max-width:100%;max-height:100%;object-fit:contain}
 </style>
 </head>
 <body>
@@ -370,6 +374,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <button class="tbtn" id="cropBtn" disabled title="자르기 (크롭)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>
           자르기</button>
+        <button class="tbtn icon" id="adjustBtn" disabled title="밝기 · 대비 · 채도 보정">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
         <button class="tbtn" id="resizeBtn" disabled title="크기변경 (Ctrl+R)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
           크기변경</button>
@@ -550,6 +556,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
     <span id="cropInfo">이미지 위에서 드래그해 자를 영역을 선택하세요</span>
     <button class="ghost" data-close>취소</button>
     <button class="primary" id="cropApply">자르기 적용</button>
+  </div>
+</div>
+
+<!-- 밝기·대비·채도 보정 다이얼로그 -->
+<div class="scrim" id="adjustScrim">
+  <div class="dialog">
+    <h3>밝기 · 대비 · 채도 보정</h3>
+    <div class="adj-preview"><img id="adjImg" alt=""></div>
+    <div class="field"><label>밝기 <span id="adjBVal" style="color:var(--accent)">100</span></label><input type="range" id="adjB" min="20" max="200" value="100"></div>
+    <div class="field"><label>대비 <span id="adjCVal" style="color:var(--accent)">100</span></label><input type="range" id="adjC" min="20" max="200" value="100"></div>
+    <div class="field"><label>채도 <span id="adjSVal" style="color:var(--accent)">100</span></label><input type="range" id="adjS" min="0" max="200" value="100"></div>
+    <div class="dlg-actions"><button class="ghost" id="adjReset" style="flex:0 0 auto;padding-left:16px;padding-right:16px">초기화</button><button class="ghost" data-close>취소</button><button class="primary" id="adjApply">보정 저장</button></div>
   </div>
 </div>
 
@@ -974,7 +992,7 @@ function updateStatus(){
     else $('#statLeft').innerHTML=`<b>${images.length}장</b> · 더블클릭=크게보기 · Ctrl/Shift+클릭으로 여러 개 선택`;
   }
 }
-function setBtns(on){['rotL','rotR','flipH','flipV','cropBtn','resizeBtn','convBtn','compBtn','renameBtn','delBtn'].forEach(id=>{const e=$('#'+id);if(e)e.disabled=!on;});}
+function setBtns(on){['rotL','rotR','flipH','flipV','cropBtn','adjustBtn','resizeBtn','convBtn','compBtn','renameBtn','delBtn'].forEach(id=>{const e=$('#'+id);if(e)e.disabled=!on;});}
 
 // 편집 후 화면 갱신(그리드 타일·미리보기·단독뷰 동시)
 function refreshViews(){
@@ -1096,6 +1114,56 @@ $('#cropApply').onclick=async()=>{
     toast(`${nw}×${nh} 자르기 완료 (원본은 ImgZipView_원본)`);
   } else toast('저장 실패: '+(r.error||''));
 };
+
+// ---- 밝기·대비·채도 보정 ----
+const adjFilter=()=>`brightness(${$('#adjB').value}%) contrast(${$('#adjC').value}%) saturate(${$('#adjS').value}%)`;
+function syncAdjLabels(){ $('#adjBVal').textContent=$('#adjB').value; $('#adjCVal').textContent=$('#adjC').value; $('#adjSVal').textContent=$('#adjS').value; }
+function openAdjust(){
+  const im=current(); if(!im||!im.path){ toast('보정할 이미지를 선택하세요'); return; }
+  if(!API){ toast('데스크톱 빌드에서 가능합니다'); return; }
+  $('#adjB').value=100; $('#adjC').value=100; $('#adjS').value=100; syncAdjLabels();
+  const adj=$('#adjImg'); adj.src=im.thumb||im.url; adj.style.filter='none';
+  $('#adjustScrim').classList.add('show');
+}
+$('#adjustBtn').onclick=openAdjust;
+['adjB','adjC','adjS'].forEach(id=>$('#'+id).oninput=()=>{ syncAdjLabels(); $('#adjImg').style.filter=adjFilter(); });
+$('#adjReset').onclick=()=>{ $('#adjB').value=100; $('#adjC').value=100; $('#adjS').value=100; syncAdjLabels(); $('#adjImg').style.filter='none'; };
+$('#adjApply').onclick=async()=>{
+  const im=current(); if(!im||!im.path){ closeDialogs(); return; }
+  const b=+$('#adjB').value, c=+$('#adjC').value, s=+$('#adjS').value;
+  closeDialogs();
+  if(b===100&&c===100&&s===100){ toast('변경할 보정값이 없어요'); return; }
+  const img=new Image(); img.src=im.url; await img.decode();
+  const cv=document.createElement('canvas'); cv.width=img.naturalWidth; cv.height=img.naturalHeight;
+  const ctx=cv.getContext('2d');
+  ctx.filter=`brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+  ctx.drawImage(img,0,0);
+  const ext=(im.name.split('.').pop()||'jpg').toLowerCase();
+  const type=ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
+  const blob=await new Promise(r=>cv.toBlob(r,type, type==='image/jpeg'?0.95:undefined));
+  const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
+  if(r.ok){
+    if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url);
+    im.url=URL.createObjectURL(blob); im.size=blob.size;
+    if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
+    toast('보정 저장 완료 (원본은 ImgZipView_원본)');
+  } else toast('저장 실패: '+(r.error||''));
+};
+
+// ---- 인쇄 ----
+function printImage(im){
+  im=im||current(); if(!im){ toast('인쇄할 이미지가 없어요'); return; }
+  const ifr=document.createElement('iframe');
+  ifr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(ifr);
+  const doc=ifr.contentDocument||ifr.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page{margin:12mm}html,body{margin:0;height:100%}img{max-width:100%;max-height:100%;display:block;margin:auto}</style></head><body><img src="${im.url}"></body></html>`);
+  doc.close();
+  const go=()=>{ try{ ifr.contentWindow.focus(); ifr.contentWindow.print(); }catch(e){ toast('인쇄 실패'); } setTimeout(()=>ifr.remove(),1500); };
+  const img=doc.querySelector('img');
+  if(img.complete) setTimeout(go,250); else { img.onload=()=>setTimeout(go,200); img.onerror=()=>{ ifr.remove(); toast('인쇄 실패'); }; }
+}
 
 // 캔버스로 회전/리사이즈 적용해 blob 생성
 async function renderToBlob(im, addDeg=0, resize=null, fmt=null, quality=0.9, flip=null){
@@ -1430,6 +1498,7 @@ document.addEventListener('keydown',e=>{
     else if(e.key==='Delete')$('#delBtn').click();
     else if(e.key==='F2')$('#renameBtn').click();
     else if(e.key==='s'||e.key==='S'){e.preventDefault();toggleSlideshow();}
+    else if(e.ctrlKey&&(e.key==='p'||e.key==='P')){e.preventDefault();printImage();}
     // 회전: Ctrl+. 우, Ctrl+, 좌 (알씨식) / Ctrl+T 도 우회전
     else if(e.ctrlKey&&(e.key==='.'||e.key==='t')){e.preventDefault();rotateSave(90);}
     else if(e.ctrlKey&&e.key===','){e.preventDefault();rotateSave(-90);}
@@ -1502,11 +1571,13 @@ function buildCtx(n){
     it('resize','크기 변경')+
     it('rotR','오른쪽 회전')+
     it('flipH','좌우 반전')+
+    it('adjust','밝기·대비·채도')+
     `<div class="csep"></div>`+
     it('comp','용량 줄이기')+
     it('conv','포맷 변환')+
     it('rename','이름 변경')+
     `<div class="csep"></div>`+
+    it('print','인쇄')+
     it('explorer','탐색기에서 보기')+
     `<div class="csep"></div>`+
     it('del','삭제','danger');
@@ -1517,6 +1588,8 @@ function ctxAction(a){
   else if(a==='crop')openCrop();
   else if(a==='rotR')rotateSave(90);
   else if(a==='flipH')flipSave('h');
+  else if(a==='adjust')openAdjust();
+  else if(a==='print')printImage();
   else if(a==='comp')$('#compBtn').click();
   else if(a==='resize')$('#resizeBtn').click();
   else if(a==='conv')$('#convBtn').click();
