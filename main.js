@@ -127,6 +127,79 @@ ipcMain.handle('open-files', async (event) => {
   return { ok: true, count: r.filePaths.length };
 });
 
+// ===== 웹페이지 전체 캡처(FullPage) — 숨은 창에 URL 로드 → CDP로 전체 페이지 1장 캡처 =====
+function pad2(n){ return String(n).padStart(2, '0'); }
+ipcMain.handle('capture-web', async (event, payload) => {
+  let url = ((payload && payload.url) || '').trim();
+  const fullPage = !payload || payload.fullPage !== false;
+  if (!url) return { ok: false, error: '주소가 비어 있습니다' };
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  const senderWin = BrowserWindow.fromWebContents(event.sender);
+  let capWin = null;
+  try {
+    capWin = new BrowserWindow({
+      width: 1280, height: 900, show: false,
+      webPreferences: { sandbox: true, backgroundThrottling: false },
+    });
+    // 숨은 창은 컴포지팅을 안 해 captureScreenshot이 멈춤 → 화면 밖에서 비활성 표시
+    try { capWin.setPosition(-4000, 0); } catch (e) {}
+    capWin.showInactive();
+    await Promise.race([
+      capWin.loadURL(url),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('로드 시간 초과')), 35000)),
+    ]);
+    const wc = capWin.webContents;
+    await new Promise(r => setTimeout(r, 1200)); // 초기 렌더 여유
+    if (fullPage) {
+      // 지연 로딩(lazy-load) 유도: 끝까지 스크롤 후 맨 위로 복귀
+      try {
+        await wc.executeJavaScript(
+          'new Promise(function(res){var y=0;function step(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);window.scrollTo(0,y);y+=window.innerHeight;if(y<h){setTimeout(step,100);}else{window.scrollTo(0,0);setTimeout(res,400);}}step();});',
+          true
+        );
+      } catch (e) {}
+    }
+    const dbg = wc.debugger;
+    try { dbg.attach('1.3'); } catch (e) {}
+    await dbg.sendCommand('Page.enable');
+    const m = await dbg.sendCommand('Page.getLayoutMetrics');
+    const cs = m.cssContentSize || m.contentSize || { width: 1280, height: 900 };
+    let width = Math.max(1, Math.ceil(cs.width));
+    let height = Math.max(1, Math.ceil(cs.height));
+    const MAXH = 30000;
+    let capped = false;
+    if (fullPage && height > MAXH) { height = MAXH; capped = true; }
+    let shot;
+    if (fullPage) {
+      shot = await dbg.sendCommand('Page.captureScreenshot', {
+        format: 'png', captureBeyondViewport: true,
+        clip: { x: 0, y: 0, width, height, scale: 1 },
+      });
+    } else {
+      shot = await dbg.sendCommand('Page.captureScreenshot', { format: 'png' });
+    }
+    let title = '';
+    try { title = (await wc.executeJavaScript('document.title')) || ''; } catch (e) {}
+    if (!title) { try { title = new URL(url).hostname; } catch (e) { title = 'capture'; } }
+    try { dbg.detach(); } catch (e) {}
+    const buf = Buffer.from(shot.data, 'base64');
+    const safe = String(title).replace(/[\\/:*?"<>|\r\n]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 60) || 'capture';
+    const dir = path.join(app.getPath('downloads'), 'ImgZipView_Captures');
+    await fs.mkdir(dir, { recursive: true });
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    const file = path.join(dir, `${safe}_${stamp}.png`);
+    await fs.writeFile(file, buf);
+    // 캡처 결과를 메인 그리드에 이어붙여 추가 → 바로 편집/압축 가능
+    await sendFilesToRenderer(senderWin, [file], false);
+    return { ok: true, path: file, width, height, dir, capped };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  } finally {
+    if (capWin && !capWin.isDestroyed()) capWin.destroy();
+  }
+});
+
 // 편집 결과 저장: 원본 경로에 덮어쓰기 (회전/크기변경 등)
 //  - backup: true 면 같은 폴더의 'ImgView_원본'에 원본을 먼저 복사
 ipcMain.handle('save-overwrite', async (event, { srcPath, data, backup }) => {
