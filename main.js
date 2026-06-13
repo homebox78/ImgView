@@ -5,7 +5,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 let mainWin = null;
-const IMG_RE = /\.(jpe?g|png|webp|gif|bmp|tiff?|ico|svg|heic|heif)$/i;
+const IMG_RE = /\.(jpe?g|png|webp|gif|bmp|tiff?|ico|svg|heic|heif|psd)$/i;
 
 // 명령줄 인자 → 이미지 경로 수집 (파일은 그대로, 폴더는 안의 이미지 펼침)
 async function collectImagePaths(argv) {
@@ -346,6 +346,12 @@ ipcMain.handle('toggle-fullscreen', (event) => {
   if (!win) return false;
   win.setFullScreen(!win.isFullScreen());
   return win.isFullScreen();
+});
+ipcMain.handle('toggle-always-on-top', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return false;
+  win.setAlwaysOnTop(!win.isAlwaysOnTop());
+  return win.isAlwaysOnTop();
 });
 
 // ===== 폴더 트리(탐색기) =====

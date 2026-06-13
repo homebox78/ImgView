@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('imgview', {
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),
   toggleFullscreen:()      => ipcRenderer.invoke('toggle-fullscreen'),
+  toggleAlwaysOnTop:()     => ipcRenderer.invoke('toggle-always-on-top'),
   // 폴더 트리(탐색기)
   listDrives:    ()        => ipcRenderer.invoke('list-drives'),
   listNetwork:   ()        => ipcRenderer.invoke('list-network'),
