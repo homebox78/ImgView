@@ -1058,14 +1058,10 @@ async function updateZipBar(im){
   if(current()!==im || !est || est>=im.size*0.9) return;
   const pct=Math.round((1-est/im.size)*100);
   $('#zipText').innerHTML=`이 이미지는 약 <b>${pct}%</b> 줄일 수 있어요 · ${fmtSize(im.size)} → ${fmtSize(est)}`;
-  $('#zipBtn').lastChild.textContent = imgzip.installed ? '용량 줄이기' : 'ImgZip 설치하고 줄이기';
   bar.style.display='flex';
 }
-$('#zipBtn').onclick=async()=>{
-  const im=current(); if(!im||!im.path)return;
-  if(imgzip.installed){ const r=await API.openInImgZip(im.path); if(r&&r.ok)toast('ImgZip에서 여는 중…'); else toast('ImgZip 실행 실패'); }
-  else if(confirm('ImgZip(이미집)가 설치되어 있지 않습니다. 설치/다운로드 페이지를 여시겠어요?')) API.openExternal('https://github.com/homebox78/ImgZip');
-};
+// 인앱 용량 줄이기(압축 다이얼로그)로 연결 — 외부 ImgZip 실행 안 함
+$('#zipBtn').onclick=()=>{ const im=current(); if(!im||!im.path)return; $('#compBtn').click(); };
 function singleNav(d){ idx=(idx+d+images.length)%images.length; showSingle(); }
 function backToGrid(){ stopSlideshow(true); setMode('grid'); renderGrid(); if(images.length)select(idx); }
 
