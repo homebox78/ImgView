@@ -101,7 +101,7 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 body.col-resizing{cursor:col-resize;user-select:none}
 
 /* 좌측 폴더 트리(탐색기) */
-.tree{width:378px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
+.tree{width:300px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
   padding:8px 6px;background:var(--bg-soft);font-size:12.5px}
 .tree-head{display:flex;align-items:center;gap:6px;padding:4px 8px 8px;
   font-size:11px;font-weight:700;color:var(--text-faint);letter-spacing:.02em}
@@ -2248,7 +2248,7 @@ document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
 (function setupResizers(){
   const tree=$('#tree'), prev=$('#preview');
   const clampW=(v,mn,mx)=>Math.max(mn,Math.min(mx,v));
-  try{ const tw=+localStorage.getItem('izv_treeW2'); if(tw) tree.style.width=clampW(tw,150,480)+'px'; }catch(e){}
+  try{ const tw=+localStorage.getItem('izv_treeW3'); if(tw) tree.style.width=clampW(tw,150,480)+'px'; }catch(e){}
   try{ const pw=+localStorage.getItem('izv_prevW'); if(pw) prev.style.width=clampW(pw,240,720)+'px'; }catch(e){}
   function drag(handle, el, mn, mx, key, leftSide){
     if(!handle) return;
@@ -2262,9 +2262,9 @@ document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
         window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); };
       window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
     });
-    handle.addEventListener('dblclick',()=>{ const d=leftSide?378:340; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
+    handle.addEventListener('dblclick',()=>{ const d=leftSide?300:340; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
   }
-  drag($('#rzTree'), tree, 150, 480, 'izv_treeW2', true);    // 좌측 트리(150~480)
+  drag($('#rzTree'), tree, 150, 480, 'izv_treeW3', true);    // 좌측 트리(150~480)
   drag($('#rzPrev'), prev, 240, 720, 'izv_prevW', false);   // 우측 미리보기(240~720)
 })();
 setMode('grid');
