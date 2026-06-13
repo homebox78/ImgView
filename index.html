@@ -80,6 +80,11 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 
 /* === 그리드 화면: [폴더 트리] [바둑판] [미리보기] === */
 .gridscreen{flex:1;display:flex;min-height:0}
+/* 사이드 패널 너비 조절 핸들 */
+.resizer{flex:none;width:7px;cursor:col-resize;position:relative;z-index:6}
+.resizer::after{content:'';position:absolute;top:0;bottom:0;left:2px;right:2px;border-radius:2px;background:transparent;transition:background .12s}
+.resizer:hover::after,.resizer.drag::after{background:var(--accent)}
+body.col-resizing{cursor:col-resize;user-select:none}
 
 /* 좌측 폴더 트리(탐색기) */
 .tree{width:240px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
@@ -339,8 +344,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 #cropImg{max-width:94%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
 .crop-box{position:absolute;border:1.5px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.58);display:none}
 .crop-box::after{content:'';position:absolute;inset:0;border:1px dashed rgba(255,255,255,.6);pointer-events:none}
-.crop-bar{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-top:1px solid var(--border)}
+.crop-bar{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--surface);border-top:1px solid var(--border)}
 .crop-bar #cropInfo{color:var(--text-faint);font-size:12.5px;margin-right:auto}
+/* 다이얼로그 밖(크롭바 등)에서도 ghost/primary 버튼 스타일 적용 */
+.crop-bar .ghost,.crop-bar .primary{border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:13px;padding:10px 20px;border-radius:9px}
+.crop-bar .ghost{background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border)}
+.crop-bar .primary{background:var(--primary);color:var(--primary-ink)}
+.crop-bar .primary:hover{background:#1f2937}
 /* 밝기·대비·채도 보정 미리보기 */
 .adj-preview{height:190px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
   display:grid;place-items:center;overflow:hidden;margin-bottom:16px}
@@ -437,6 +447,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <div class="tpath"><input id="pathInput" placeholder="경로 입력 후 Enter (예: \\서버\공유)" spellcheck="false"></div>
         <div id="treeRoots"></div>
       </aside>
+      <div class="resizer" id="rzTree" title="너비 조절 (더블클릭=초기화)"></div>
       <div class="gridmain">
         <div class="gridtop">
           <div class="sortctl">
@@ -455,6 +466,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         </div>
         <div class="grid" id="grid"></div>
       </div>
+      <div class="resizer" id="rzPrev" title="너비 조절 (더블클릭=초기화)"></div>
       <aside class="preview" id="preview"></aside>
     </div>
 
@@ -1961,6 +1973,29 @@ function enhanceNumber(inp){
   });
 }
 document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
+// 사이드 패널 너비 조절
+(function setupResizers(){
+  const tree=$('#tree'), prev=$('#preview');
+  const clampW=(v,mn,mx)=>Math.max(mn,Math.min(mx,v));
+  try{ const tw=+localStorage.getItem('izv_treeW'); if(tw) tree.style.width=clampW(tw,150,420)+'px'; }catch(e){}
+  try{ const pw=+localStorage.getItem('izv_prevW'); if(pw) prev.style.width=clampW(pw,240,720)+'px'; }catch(e){}
+  function drag(handle, el, mn, mx, key, leftSide){
+    if(!handle) return;
+    handle.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      const startX=e.clientX, startW=el.getBoundingClientRect().width;
+      handle.classList.add('drag'); document.body.classList.add('col-resizing');
+      const move=ev=>{ let w=leftSide?startW+(ev.clientX-startX):startW-(ev.clientX-startX); el.style.width=clampW(w,mn,mx)+'px'; };
+      const up=()=>{ handle.classList.remove('drag'); document.body.classList.remove('col-resizing');
+        try{ localStorage.setItem(key, parseInt(el.style.width)); }catch(e){}
+        window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); };
+      window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+    });
+    handle.addEventListener('dblclick',()=>{ const d=leftSide?240:340; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
+  }
+  drag($('#rzTree'), tree, 150, 420, 'izv_treeW', true);    // 좌측 트리(150~420)
+  drag($('#rzPrev'), prev, 240, 720, 'izv_prevW', false);   // 우측 미리보기(240~720)
+})();
 setMode('grid');
 renderGrid();
 renderPreview();
