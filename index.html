@@ -371,6 +371,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .wm-tab{flex:1;padding:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);
   border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600}
 .wm-tab.on{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
+/* 캡처 이력 */
+.web-hist{max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)}
+.web-hist .wh-row{display:flex;align-items:center;gap:10px;padding:8px 11px;border-bottom:1px solid var(--border-soft);cursor:pointer;font-size:12.5px}
+.web-hist .wh-row:last-child{border-bottom:none}
+.web-hist .wh-row:hover{background:var(--surface)}
+.web-hist .wh-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.web-hist .wh-meta{color:var(--text-faint);white-space:nowrap;font-size:11.5px}
+.web-hist .wh-empty{padding:14px;text-align:center;color:var(--text-faint);font-size:12px}
+.web-hist .wh-row.gone{opacity:.45}
 </style>
 </head>
 <body>
@@ -613,11 +622,21 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
 <!-- 웹페이지 캡처 다이얼로그 -->
 <div class="scrim" id="webScrim">
-  <div class="dialog">
+  <div class="dialog dialog-wide">
     <h3>웹페이지 캡처</h3>
     <div class="field"><label>주소(URL)</label><input class="inp" id="webUrl" type="text" placeholder="example.com 또는 https://..." spellcheck="false"></div>
-    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="webFull" checked> 전체 페이지(스크롤 포함) 캡처</label></div>
-    <div id="webStatus" style="font-size:12.5px;color:var(--text-faint);min-height:18px;line-height:1.5"></div>
+    <div class="wm-row">
+      <div class="field" style="flex:1;margin-bottom:0"><label>캡처 범위</label>
+        <select id="webRange"><option value="full">전체 페이지(스크롤 포함)</option><option value="view">보이는 영역만</option></select></div>
+      <div class="field" style="flex:1;margin-bottom:0"><label>결과 형식</label>
+        <select id="webFmt"><option value="png">이미지(PNG)</option><option value="pdf">PDF</option></select></div>
+    </div>
+    <div id="webStatus" style="font-size:12.5px;color:var(--text-faint);min-height:18px;line-height:1.5;margin-top:12px"></div>
+    <div style="margin-top:10px">
+      <div style="font-size:12px;color:var(--text-faint);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+        <span>최근 캡처 이력</span><button type="button" class="chip" id="webHistRefresh" style="padding:3px 9px">새로고침</button></div>
+      <div id="webHist" class="web-hist"></div>
+    </div>
     <div class="dlg-actions"><button class="ghost" data-close>취소</button><button class="primary" id="webGo">캡처</button></div>
   </div>
 </div>
@@ -1787,26 +1806,57 @@ $('#folderBtn').onclick=async()=>{
   }
 };
 
-// ---- 웹페이지 전체 캡처 → 그리드에 추가 ----
+// ---- 웹페이지 캡처(옵션·이력) → 그리드에 추가 ----
 $('#webBtn').onclick=()=>{
   if(!API||!API.captureWeb){ toast('데스크톱 빌드에서 가능합니다'); return; }
   $('#webStatus').textContent=''; $('#webGo').disabled=false;
   $('#webScrim').classList.add('show');
+  loadCaptureHistory();
   setTimeout(()=>$('#webUrl').focus(),50);
 };
+function fmtTimeAgo(ms){ const d=new Date(ms); const p=n=>String(n).padStart(2,'0'); return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+async function loadCaptureHistory(){
+  const box=$('#webHist'); if(!API||!API.captureHistory){ box.innerHTML='<div class="wh-empty">데스크톱 빌드에서만</div>'; return; }
+  const hist=await API.captureHistory();
+  if(!hist||!hist.length){ box.innerHTML='<div class="wh-empty">아직 캡처 이력이 없어요</div>'; return; }
+  box.innerHTML=hist.slice(0,50).map((h,i)=>`<div class="wh-row ${h.exists?'':'gone'}" data-i="${i}" title="${esc(h.file||'')}">
+    <span class="wh-title">${esc(h.title||h.url||'capture')}</span>
+    <span class="wh-meta">${h.width}×${h.height} · ${fmtTimeAgo(h.time)}${h.exists?'':' · 파일없음'}</span></div>`).join('');
+  box.querySelectorAll('.wh-row').forEach(row=>row.onclick=()=>{
+    const h=hist[+row.dataset.i]; if(!h)return;
+    if(!h.exists){ toast('캐시 파일이 삭제되었어요'); return; }
+    // 캐시 파일 다시 불러오기(그리드에 추가)
+    addFiles([{name:h.file.split(/[\\/]/).pop(), path:h.file, url:fileURL(h.file), size:h.size}]);
+    closeDialogs();
+    if(mode!=='grid'){ setMode('grid'); renderGrid(); }
+    toast('이력에서 불러왔어요');
+  });
+}
+$('#webHistRefresh').onclick=loadCaptureHistory;
 async function doWebCapture(){
   const url=($('#webUrl').value||'').trim();
   if(!url){ toast('주소를 입력하세요'); return; }
-  const full=$('#webFull').checked;
+  const full=$('#webRange').value!=='view';
+  const wantPdf=$('#webFmt').value==='pdf';
   const st=$('#webStatus');
   st.textContent='페이지를 불러와 캡처하는 중… 긴 페이지는 시간이 걸릴 수 있어요.';
   $('#webGo').disabled=true;
   const r=await API.captureWeb({url, fullPage:full});
   $('#webGo').disabled=false;
   if(r&&r.ok){
+    let extra='';
+    if(wantPdf && API.saveBytes){
+      try{
+        st.textContent='PDF로 변환 중…';
+        const blob=await buildPdf([{name:'capture', url:fileURL(r.path)}]);
+        const pdfPath=r.path.replace(/\.png$/i,'.pdf');
+        const sr=await API.saveBytes({path:pdfPath, data:await blob.arrayBuffer()});
+        if(sr&&sr.ok) extra=' · PDF로도 저장';
+      }catch(e){}
+    }
     closeDialogs();
     if(mode!=='grid'){ setMode('grid'); renderGrid(); }
-    toast(`캡처 완료 · ${r.width}×${r.height}${r.capped?' (높이 제한 적용)':''} → 목록에 추가됨`);
+    toast(`캡처 완료 · ${r.width}×${r.height}${r.capped?' (높이 제한)':''} → 목록 추가${extra}`);
   }else{
     st.innerHTML='<span style="color:var(--danger)">실패: '+esc((r&&r.error)||'알 수 없는 오류')+'</span>';
   }

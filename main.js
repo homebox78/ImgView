@@ -196,6 +196,15 @@ ipcMain.handle('capture-web', async (event, payload) => {
     const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
     const file = path.join(dir, `${safe}_${stamp}.png`);
     await fs.writeFile(file, buf);
+    // 캡처 이력(JSON) 기록
+    try {
+      const histPath = path.join(dir, '_history.json');
+      let hist = [];
+      try { hist = JSON.parse(await fs.readFile(histPath, 'utf8')) || []; } catch (e) {}
+      hist.unshift({ time: Date.now(), url, title: safe, file, width, height, size: buf.length });
+      hist = hist.slice(0, 200);
+      await fs.writeFile(histPath, JSON.stringify(hist));
+    } catch (e) {}
     // 캡처 결과를 메인 그리드에 이어붙여 추가 → 바로 편집/압축 가능
     await sendFilesToRenderer(senderWin, [file], false);
     return { ok: true, path: file, width, height, dir, capped };
@@ -204,6 +213,21 @@ ipcMain.handle('capture-web', async (event, payload) => {
   } finally {
     if (capWin && !capWin.isDestroyed()) capWin.destroy();
   }
+});
+
+// 캡처 이력 읽기 (파일 존재 여부 포함)
+ipcMain.handle('capture-history', async () => {
+  try {
+    const dir = path.join(app.getPath('downloads'), 'ImgZipView_Captures');
+    const hist = JSON.parse(await fs.readFile(path.join(dir, '_history.json'), 'utf8')) || [];
+    return await Promise.all(hist.map(async (h) => ({ ...h, exists: await exists(h.file) })));
+  } catch (e) { return []; }
+});
+
+// 임의 절대경로에 바이트 저장 (캡처→PDF 등)
+ipcMain.handle('save-bytes', async (event, { path: p, data }) => {
+  try { await fs.writeFile(p, Buffer.from(data)); return { ok: true, path: p }; }
+  catch (e) { return { ok: false, error: String(e) }; }
 });
 
 // 편집 결과 저장: 원본 경로에 덮어쓰기 (회전/크기변경 등)
