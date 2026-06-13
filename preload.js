@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('imgview', {
   openFiles:     ()        => ipcRenderer.invoke('open-files'),
   saveOverwrite: (payload) => ipcRenderer.invoke('save-overwrite', payload),
   saveFiles:     (payload) => ipcRenderer.invoke('save-files', payload),
+  saveCompressed:(payload) => ipcRenderer.invoke('save-compressed', payload),
   renameFile:    (payload) => ipcRenderer.invoke('rename-file', payload),
   deleteFile:    (p)       => ipcRenderer.invoke('delete-file', p),
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),

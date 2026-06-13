@@ -45,7 +45,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 760, minHeight: 560,
     backgroundColor: '#0c0d10',
-    title: 'ImgView',
+    title: 'ImgZipView',
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
@@ -92,13 +92,28 @@ ipcMain.handle('open-folder', async (event) => {
   });
   if (r.canceled || !r.filePaths[0]) return { ok: false };
   const dir = r.filePaths[0];
-  const paths = [];
-  for (const e of await fs.readdir(dir)) {
-    if (IMG_RE.test(e)) paths.push(path.join(dir, e));
-  }
-  await sendFilesToRenderer(win, paths.sort());
-  return { ok: true, count: paths.length, dir };
+  const { paths, subfolders } = await scanFolder(dir);
+  await sendFilesToRenderer(win, paths, true);
+  return { ok: true, count: paths.length, dir, subfolders };
 });
+
+// 한 폴더를 한 번에 읽어 이미지 경로 + 하위 폴더 목록을 분리 반환
+async function scanFolder(dir) {
+  const ents = await fs.readdir(dir, { withFileTypes: true });
+  const paths = [];
+  const subfolders = [];
+  for (const e of ents) {
+    if (e.isDirectory()) {
+      if (!e.name.startsWith('$') && !e.name.startsWith('.'))
+        subfolders.push({ name: e.name, path: path.join(dir, e.name) });
+    } else if (IMG_RE.test(e.name)) {
+      paths.push(path.join(dir, e.name));
+    }
+  }
+  paths.sort((a, b) => a.localeCompare(b, 'ko'));
+  subfolders.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  return { paths, subfolders };
+}
 
 // 파일 열기 (여러 장)
 ipcMain.handle('open-files', async (event) => {
@@ -117,7 +132,7 @@ ipcMain.handle('open-files', async (event) => {
 ipcMain.handle('save-overwrite', async (event, { srcPath, data, backup }) => {
   try {
     if (backup && srcPath) {
-      const dir = path.join(path.dirname(srcPath), 'ImgView_원본');
+      const dir = path.join(path.dirname(srcPath), 'ImgZipView_원본');
       await fs.mkdir(dir, { recursive: true });
       const dst = path.join(dir, path.basename(srcPath));
       if (!(await exists(dst))) await fs.copyFile(srcPath, dst);
@@ -151,6 +166,58 @@ ipcMain.handle('save-files', async (event, payload) => {
     count++;
   }
   return { ok: true, count, dir };
+});
+
+// 용량 줄이기(압축) 결과 저장
+//  - mode 'folder'    : 폴더 선택 대화상자 → 그 폴더에 새 파일로 저장(원본 보존, 이름충돌 시 번호)
+//  - mode 'overwrite' : 원본 폴더에 저장. backup=true면 'ImgZipView_원본'에 원본 복사 후 덮어씀.
+//                       포맷이 바뀌어 새 파일명이면 원본 파일은 휴지통으로 이동.
+//  반환: { ok, count, dir, results:[{srcPath, newPath, ok}] }
+ipcMain.handle('save-compressed', async (event, { items, mode, backup }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  let dir = null;
+  if (mode === 'folder') {
+    const r = await dialog.showOpenDialog(win, {
+      title: '압축 이미지를 저장할 폴더를 선택하세요',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    dir = r.filePaths[0];
+  }
+  const results = [];
+  let count = 0;
+  for (const it of (items || [])) {
+    try {
+      const buf = Buffer.from(it.data);
+      if (mode === 'folder') {
+        const ext = path.extname(it.name);
+        const base = it.name.slice(0, it.name.length - ext.length);
+        let target = path.join(dir, it.name);
+        let i = 1;
+        while (await exists(target)) { target = path.join(dir, `${base} (${i})${ext}`); i++; }
+        await fs.writeFile(target, buf);
+        results.push({ srcPath: it.srcPath, newPath: target, ok: true });
+      } else {
+        const d = path.dirname(it.srcPath);
+        if (backup) {
+          const bdir = path.join(d, 'ImgZipView_원본');
+          await fs.mkdir(bdir, { recursive: true });
+          const bdst = path.join(bdir, path.basename(it.srcPath));
+          if (!(await exists(bdst))) await fs.copyFile(it.srcPath, bdst);
+        }
+        const target = path.join(d, it.name);
+        await fs.writeFile(target, buf);
+        if (path.resolve(target).toLowerCase() !== path.resolve(it.srcPath).toLowerCase()) {
+          try { await shell.trashItem(it.srcPath); } catch (e) {}
+        }
+        results.push({ srcPath: it.srcPath, newPath: target, ok: true });
+      }
+      count++;
+    } catch (e) {
+      results.push({ srcPath: it.srcPath, ok: false, error: String(e) });
+    }
+  }
+  return { ok: true, count, dir, results };
 });
 
 // 이름 변경
@@ -335,12 +402,9 @@ ipcMain.handle('list-dir', async (event, dir) => {
 ipcMain.handle('load-folder', async (event, dir) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   try {
-    const paths = [];
-    for (const e of await fs.readdir(dir)) {
-      if (IMG_RE.test(e)) paths.push(path.join(dir, e));
-    }
-    await sendFilesToRenderer(win, paths.sort((a, b) => a.localeCompare(b, 'ko')), true);
-    return { ok: true, count: paths.length, dir };
+    const { paths, subfolders } = await scanFolder(dir);
+    await sendFilesToRenderer(win, paths, true);
+    return { ok: true, count: paths.length, dir, subfolders };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 

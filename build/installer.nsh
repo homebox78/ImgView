@@ -19,27 +19,27 @@
   System::Call 'gdi32::AddFontResourceExW(w "$PLUGINSDIR\Pretendard.otf", i 0x10, i 0) i .r0'
 !macroend
 
-; 이미지 확장자별 우클릭 "ImgView로 보기" 등록/해제 매크로
+; 이미지 확장자별 우클릭 "ImgZipView로 보기" 등록/해제 매크로
 ; SystemFileAssociations 아래에 verb 만 추가 → 기존 연결/탐색기 썸네일을 건드리지 않음
 !macro RegImgVerb EXT
-  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgViewOpen" "" "ImgView로 보기"
-  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgViewOpen" "Icon" "$INSTDIR\ImgView.exe,0"
-  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgViewOpen\command" "" '"$INSTDIR\ImgView.exe" "%1"'
+  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgZipViewOpen" "" "ImgZipView로 보기"
+  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgZipViewOpen" "Icon" "$INSTDIR\ImgZipView.exe,0"
+  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgZipViewOpen\command" "" '"$INSTDIR\ImgZipView.exe" "%1"'
 !macroend
 !macro DelImgVerb EXT
-  DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgViewOpen"
+  DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\${EXT}\shell\ImgZipViewOpen"
 !macroend
 
 ; '연결 프로그램(Open with)' 후보로 노출시킬 지원 형식 등록
 !macro RegSupType EXT
-  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\SupportedTypes" "${EXT}" ""
-  WriteRegStr HKCU "Software\Classes\${EXT}\OpenWithList\ImgView.exe" "" ""
+  WriteRegStr HKCU "Software\Classes\Applications\ImgZipView.exe\SupportedTypes" "${EXT}" ""
+  WriteRegStr HKCU "Software\Classes\${EXT}\OpenWithList\ImgZipView.exe" "" ""
 !macroend
 !macro DelSupType EXT
-  DeleteRegKey HKCU "Software\Classes\${EXT}\OpenWithList\ImgView.exe"
+  DeleteRegKey HKCU "Software\Classes\${EXT}\OpenWithList\ImgZipView.exe"
 !macroend
 
-; 설치 시: 우클릭 "ImgView로 보기" 메뉴 등록 (현재 사용자, HKCU)
+; 설치 시: 우클릭 "ImgZipView로 보기" 메뉴 등록 (현재 사용자, HKCU)
 !macro customInstall
   !insertmacro RegImgVerb ".jpg"
   !insertmacro RegImgVerb ".jpeg"
@@ -52,15 +52,15 @@
   !insertmacro RegImgVerb ".tiff"
   !insertmacro RegImgVerb ".ico"
   ; 폴더 우클릭
-  WriteRegStr HKCU "Software\Classes\Directory\shell\ImgViewOpen" "" "ImgView로 폴더 보기"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\ImgViewOpen" "Icon" "$INSTDIR\ImgView.exe,0"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\ImgViewOpen\command" "" '"$INSTDIR\ImgView.exe" "%1"'
+  WriteRegStr HKCU "Software\Classes\Directory\shell\ImgZipViewOpen" "" "ImgZipView로 폴더 보기"
+  WriteRegStr HKCU "Software\Classes\Directory\shell\ImgZipViewOpen" "Icon" "$INSTDIR\ImgZipView.exe,0"
+  WriteRegStr HKCU "Software\Classes\Directory\shell\ImgZipViewOpen\command" "" '"$INSTDIR\ImgZipView.exe" "%1"'
 
   ; ===== '연결 프로그램(Open with)' 목록에 ImgView 등록 =====
-  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe" "FriendlyAppName" "ImgView"
-  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\DefaultIcon" "" "$INSTDIR\ImgView.exe,0"
-  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\shell\open" "FriendlyAppName" "ImgView"
-  WriteRegStr HKCU "Software\Classes\Applications\ImgView.exe\shell\open\command" "" '"$INSTDIR\ImgView.exe" "%1"'
+  WriteRegStr HKCU "Software\Classes\Applications\ImgZipView.exe" "FriendlyAppName" "ImgZipView"
+  WriteRegStr HKCU "Software\Classes\Applications\ImgZipView.exe\DefaultIcon" "" "$INSTDIR\ImgZipView.exe,0"
+  WriteRegStr HKCU "Software\Classes\Applications\ImgZipView.exe\shell\open" "FriendlyAppName" "ImgZipView"
+  WriteRegStr HKCU "Software\Classes\Applications\ImgZipView.exe\shell\open\command" "" '"$INSTDIR\ImgZipView.exe" "%1"'
   !insertmacro RegSupType ".jpg"
   !insertmacro RegSupType ".jpeg"
   !insertmacro RegSupType ".png"
@@ -87,7 +87,7 @@
   !insertmacro DelImgVerb ".tif"
   !insertmacro DelImgVerb ".tiff"
   !insertmacro DelImgVerb ".ico"
-  DeleteRegKey HKCU "Software\Classes\Directory\shell\ImgViewOpen"
+  DeleteRegKey HKCU "Software\Classes\Directory\shell\ImgZipViewOpen"
   ; 연결 프로그램 등록 제거
   !insertmacro DelSupType ".jpg"
   !insertmacro DelSupType ".jpeg"
@@ -99,6 +99,6 @@
   !insertmacro DelSupType ".tif"
   !insertmacro DelSupType ".tiff"
   !insertmacro DelSupType ".ico"
-  DeleteRegKey HKCU "Software\Classes\Applications\ImgView.exe"
+  DeleteRegKey HKCU "Software\Classes\Applications\ImgZipView.exe"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 !macroend
