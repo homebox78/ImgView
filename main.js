@@ -311,50 +311,6 @@ ipcMain.handle('delete-file', async (event, srcPath) => {
 
 ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPath(dir); });
 ipcMain.handle('show-in-folder', async (event, p) => { if (p) shell.showItemInFolder(p); });
-ipcMain.handle('open-external', async (event, url) => { if (url) shell.openExternal(url); });
-
-// ===== ImgZip(이미집) 연동 — 설치/개발 위치 탐지 후 해당 exe 실행 =====
-let _imgzipCache;
-async function findImgZip() {
-  if (_imgzipCache !== undefined) return _imgzipCache;
-  const LA = process.env.LOCALAPPDATA || '';
-  const PF = process.env.PROGRAMFILES || '';
-  const PF86 = process.env['ProgramFiles(x86)'] || '';
-  const candidates = [
-    // 설치 위치 (productName=ImageZip)
-    path.join(LA, 'Programs', 'ImageZip', 'ImageZip.exe'),
-    path.join(LA, 'Programs', 'ImgZip', 'ImageZip.exe'),
-    path.join(PF, 'ImageZip', 'ImageZip.exe'),
-    path.join(PF86, 'ImageZip', 'ImageZip.exe'),
-    // 개발/빌드 산출물 위치
-    'G:\\ImgZip\\dist\\win-unpacked\\ImageZip.exe',
-    'G:\\ImgZip\\ImageZip.exe',
-  ];
-  for (const c of candidates) { if (c && await exists(c)) { _imgzipCache = c; return c; } }
-  // 레지스트리(Uninstall)에서 ImgZip 검색
-  try {
-    const ps = "$ErrorActionPreference='SilentlyContinue';@('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*')|ForEach-Object{Get-ItemProperty $_}|Where-Object{$_.DisplayName -match 'ImgZip|ImageZip|이미집'}|ForEach-Object{ $_.DisplayIcon; $_.InstallLocation }";
-    const out = await execText('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], 8000);
-    for (let line of out.split(/\r?\n/)) {
-      line = line.trim().replace(/,\d+$/, '').replace(/^"|"$/g, '');
-      if (!line) continue;
-      let exe = /\.exe$/i.test(line) ? line : path.join(line, 'ImgZip.exe');
-      if (await exists(exe)) { _imgzipCache = exe; return exe; }
-    }
-  } catch (e) {}
-  _imgzipCache = null;
-  return null;
-}
-ipcMain.handle('imgzip-info', async () => { const p = await findImgZip(); return { installed: !!p, path: p }; });
-ipcMain.handle('open-in-imgzip', async (event, file) => {
-  try {
-    const exe = await findImgZip();
-    if (!exe) return { ok: false, error: 'not-installed' };
-    const { spawn } = require('child_process');
-    spawn(exe, file ? [file] : [], { detached: true, stdio: 'ignore' }).unref();
-    return { ok: true };
-  } catch (e) { return { ok: false, error: String(e) }; }
-});
 
 // ===== 폴더 트리(탐색기) =====
 function execText(file, args, timeout = 7000) {

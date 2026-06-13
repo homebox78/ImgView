@@ -13,9 +13,6 @@ contextBridge.exposeInMainWorld('imgview', {
   deleteFile:    (p)       => ipcRenderer.invoke('delete-file', p),
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),
-  openExternal:  (u)       => ipcRenderer.invoke('open-external', u),
-  imgzipInfo:    ()        => ipcRenderer.invoke('imgzip-info'),
-  openInImgZip:  (f)       => ipcRenderer.invoke('open-in-imgzip', f),
   // 폴더 트리(탐색기)
   listDrives:    ()        => ipcRenderer.invoke('list-drives'),
   listNetwork:   ()        => ipcRenderer.invoke('list-network'),

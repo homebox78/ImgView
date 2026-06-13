@@ -640,7 +640,6 @@ let anchorIdx = 0;        // Shift 범위 선택 기준점
 let mode = 'grid';        // 'grid' | 'single'
 let viewMode = 'thumb';   // 'thumb' | 'list'
 let brightness = 100;     // 단독뷰 밝기(%)
-let imgzip = { installed:false, path:null };
 let rotation = 0, zoom = 1, fitMode = true;
 let panX = 0, panY = 0, panning = false;
 let folderCards = [];     // 하위 폴더 탐색 카드 (직접 이미지가 없을 때)
@@ -1866,7 +1865,6 @@ function enhanceNumber(inp){
   });
 }
 document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
-if(API&&API.imgzipInfo){ API.imgzipInfo().then(info=>{ imgzip=info||imgzip; }); }
 setMode('grid');
 renderGrid();
 renderPreview();
