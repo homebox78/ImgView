@@ -694,6 +694,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
 <script src="UTIF.min.js"></script>
 <script src="jspdf.umd.min.js"></script>
+<script src="heic2any.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const API = window.imgview || null;
@@ -749,19 +750,35 @@ function fileURL(p){
   const a=u.split('/'); return 'file:///'+a[0]+'/'+a.slice(1).map(encodeURIComponent).join('/');
 }
 const TIFF_RE=/\.tiff?$/i;
-// TIFF 등 브라우저가 못 그리는 포맷은 UTIF로 디코드해 PNG blob으로 교체(최초 1회)
+const HEIC_RE=/\.(heic|heif)$/i;
+// 브라우저가 못 그리는 포맷(TIFF·HEIC)은 디코드해 PNG blob으로 교체(최초 1회)
 async function ensureRenderable(im){
-  if(im._renderable || !TIFF_RE.test(im.name) || typeof UTIF==='undefined') return im.url;
-  im._renderable=true;
-  try{
-    const buf=await (await fetch(im.url)).arrayBuffer();
-    const ifds=UTIF.decode(buf); UTIF.decodeImage(buf, ifds[0]);
-    const rgba=UTIF.toRGBA8(ifds[0]); const w=ifds[0].width, h=ifds[0].height;
-    const c=el('canvas'); c.width=w; c.height=h;
-    const x=c.getContext('2d'); const d=x.createImageData(w,h); d.data.set(rgba); x.putImageData(d,0,0);
-    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
-    if(blob){ im.url=URL.createObjectURL(blob); im.dw=w; im.dh=h; }
-  }catch(e){}
+  if(im._renderable) return im.url;
+  if(TIFF_RE.test(im.name) && typeof UTIF!=='undefined'){
+    im._renderable=true;
+    try{
+      const buf=await (await fetch(im.url)).arrayBuffer();
+      const ifds=UTIF.decode(buf); UTIF.decodeImage(buf, ifds[0]);
+      const rgba=UTIF.toRGBA8(ifds[0]); const w=ifds[0].width, h=ifds[0].height;
+      const c=el('canvas'); c.width=w; c.height=h;
+      const x=c.getContext('2d'); const d=x.createImageData(w,h); d.data.set(rgba); x.putImageData(d,0,0);
+      const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+      if(blob){ im.url=URL.createObjectURL(blob); im.dw=w; im.dh=h; }
+    }catch(e){}
+    return im.url;
+  }
+  if(HEIC_RE.test(im.name) && typeof heic2any!=='undefined'){
+    im._renderable=true;
+    try{
+      // file:// fetch가 .heic MIME을 image/jpeg로 오판 → heic2any가 거부하므로 타입 강제
+      const buf=await (await fetch(im.url)).arrayBuffer();
+      const blob=new Blob([buf], {type:'image/heic'});
+      const out=await heic2any({ blob, toType:'image/jpeg', quality:0.92 });
+      const png=Array.isArray(out)?out[0]:out;
+      if(png) im.url=URL.createObjectURL(png);
+    }catch(e){ console.warn('HEIC decode 실패', e); }
+    return im.url;
+  }
   return im.url;
 }
 // 작은 썸네일 생성(캐시) — 그리드 스크롤/미리보기 속도용
@@ -1154,7 +1171,7 @@ function showSingle(){
   brightness=100; $('#brightR').value=100; $('#brightVal').textContent='100%';
   const im=current(), el=$('#mainImg');
   el.src=im.url; applyBrightness();
-  if(TIFF_RE.test(im.name)) ensureRenderable(im).then(u=>{ if(current()===im) el.src=u; });
+  if(TIFF_RE.test(im.name)||HEIC_RE.test(im.name)) ensureRenderable(im).then(u=>{ if(current()===im) el.src=u; });
   preloadNeighbors();
   $('#navPrev').style.display=$('#navNext').style.display=images.length>1?'grid':'none';
   applyTransform();
@@ -1170,7 +1187,7 @@ function preloadNeighbors(){
   if(images.length<2) return;
   for(const o of [1,-1,2,-2]){
     const im=images[(idx+o+images.length)%images.length]; if(!im) continue;
-    if(TIFF_RE.test(im.name)){ ensureRenderable(im); continue; }
+    if(TIFF_RE.test(im.name)||HEIC_RE.test(im.name)){ ensureRenderable(im); continue; }
     const pre=new Image(); pre.decoding='async'; pre.src=im.url; _preload.push(pre);
   }
 }
@@ -1421,6 +1438,8 @@ function drawWatermark(ctx, cw, ch, o){
   if(o.type==='text'){
     ctx.shadowColor=o.color==='#ffffff'?'rgba(0,0,0,.5)':'rgba(255,255,255,.5)';
     ctx.shadowBlur=Math.max(1,Math.round(cw*o.size/100*0.14));
+  }else{ // 로고: 배경과 분리되도록 옅은 그림자
+    ctx.shadowColor='rgba(0,0,0,.4)'; ctx.shadowBlur=Math.max(2,Math.round(cw*o.size/100*0.08));
   }
   if(o.mode==='pattern'){
     ctx.translate(cw/2,ch/2); ctx.rotate((o.angle||0)*Math.PI/180); ctx.translate(-cw/2,-ch/2);
@@ -1461,7 +1480,10 @@ document.querySelectorAll('.wm-col').forEach(b=>b.onclick=()=>{ wmColor=b.datase
 document.querySelectorAll('#wmTypeSeg .wm-tab').forEach(b=>b.onclick=()=>{
   wmType=b.dataset.type; document.querySelectorAll('#wmTypeSeg .wm-tab').forEach(x=>x.classList.toggle('on',x===b));
   $('#wmTextRow').style.display=wmType==='text'?'':'none'; $('#wmLogoRow').style.display=wmType==='logo'?'':'none';
-  $('#wmColRow').style.display=wmType==='text'?'flex':'none'; renderWmPreview();
+  $('#wmColRow').style.display=wmType==='text'?'flex':'none';
+  // 로고는 텍스트보다 크게 보여야 자연스러움 → 기본 크기 조정
+  const sz=wmType==='logo'?18:5; $('#wmSize').value=sz; $('#wmSizeVal').textContent=sz;
+  renderWmPreview();
 });
 document.querySelectorAll('#wmModeSeg .wm-tab').forEach(b=>b.onclick=()=>{
   wmMode=b.dataset.mode; document.querySelectorAll('#wmModeSeg .wm-tab').forEach(x=>x.classList.toggle('on',x===b));

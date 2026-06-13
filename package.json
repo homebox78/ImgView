@@ -46,6 +46,7 @@
       "index.html",
       "UTIF.min.js",
       "jspdf.umd.min.js",
+      "heic2any.min.js",
       "icon.png",
       "icon.ico",
       "fonts/**/*"
