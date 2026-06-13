@@ -103,7 +103,12 @@ async function scanFolder(dir) {
   const paths = [];
   const subfolders = [];
   for (const e of ents) {
-    if (e.isDirectory()) {
+    let isDir = e.isDirectory();
+    // 네트워크 공유(SMB) 등에서 dirent 타입이 UNKNOWN이면 stat으로 보강
+    if (!isDir && !e.isFile() && !e.isSymbolicLink()) {
+      try { isDir = (await fs.stat(path.join(dir, e.name))).isDirectory(); } catch (e2) {}
+    }
+    if (isDir) {
       if (!e.name.startsWith('$') && !e.name.startsWith('.'))
         subfolders.push({ name: e.name, path: path.join(dir, e.name) });
     } else if (IMG_RE.test(e.name)) {

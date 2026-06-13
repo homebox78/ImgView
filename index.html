@@ -56,7 +56,7 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .tbtn.icon{width:34px;padding:0;justify-content:center}
 .tbtn.accent{background:var(--primary);
   color:var(--primary-ink);border:none;font-weight:700;height:34px;padding:0 15px;box-shadow:0 2px 8px -3px rgba(17,24,39,.3)}
-.tbtn.accent:hover{transform:translateY(-1px);background:#1f2937}
+.tbtn.accent:hover{background:#1f2937;color:var(--primary-ink)}
 .tbtn svg{width:15px;height:15px;opacity:.92}
 .tbtn:disabled{opacity:.32;cursor:not-allowed}
 .sep{width:1px;height:20px;background:var(--border);margin:0 3px}
@@ -292,7 +292,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .zipbtn{display:flex;align-items:center;gap:6px;height:30px;padding:0 13px;border:none;border-radius:8px;
   background:var(--primary);color:var(--primary-ink);
   font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
-.zipbtn:hover{transform:translateY(-1px)}
+.zipbtn:hover{background:#1f2937}
 
 /* === 밝기 보정 컨트롤(상태바) === */
 .brightctl{display:flex;align-items:center;gap:7px;color:var(--text-faint)}
@@ -312,6 +312,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .folder-card .fc-name{font-size:12.5px;text-align:center;word-break:break-all;line-height:1.3;max-width:100%}
 .folder-card.up svg{opacity:.6}
 .folder-note{grid-column:1/-1;color:var(--text-faint);font-size:12.5px;padding:2px 4px 10px}
+/* 폴더 + 이미지 함께 보일 때 상단 폴더 스트립 */
+.folder-strip{grid-column:1/-1;margin-bottom:4px}
+.grid-sect{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--text-faint);padding:2px 2px 10px}
+.folder-strip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;
+  padding-bottom:16px;border-bottom:1px solid var(--border)}
 /* 우클릭 컨텍스트 메뉴 */
 .ctxmenu{position:fixed;z-index:80;min-width:188px;background:var(--surface);border:1px solid var(--border);border-radius:10px;
   padding:6px;box-shadow:0 12px 34px -10px rgba(17,24,39,.25);font-size:13px;color:var(--text)}
@@ -784,8 +789,7 @@ function renderGrid(){
   const g=$('#grid');
   if(thumbObserver){thumbObserver.disconnect();thumbObserver=null;}
   g.classList.toggle('list-mode', viewMode==='list');
-  if(!images.length){
-    if(folderCards.length){ g.classList.remove('empty-mode','list-mode'); renderFolderCards(g); return; }
+  if(!images.length && !folderCards.length){
     g.classList.add('empty-mode'); g.innerHTML=DROP_HINT;
     $('#dropHint').onclick=()=>$('#openBtn').click();
     return;
@@ -795,17 +799,23 @@ function renderGrid(){
   observeThumbs(g);
 }
 function buildTiles(g){
-  g.innerHTML = images.map((im,i)=>`
+  let html='';
+  if(folderCards.length){ html+=folderStripHTML(); if(images.length) html+=`<div class="grid-sect">이미지 ${images.length}</div>`; }
+  html += images.map((im,i)=>`
     <div class="tile ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
       <div class="tile-img"><img data-i="${i}" draggable="false" alt=""></div>
       <div class="tile-name" title="${esc(im.name)}">${esc(im.name)}</div>
     </div>`).join('');
+  g.innerHTML=html;
+  wireFolderCards(g);
   g.querySelectorAll('.tile').forEach(t=>{
     const i=+t.dataset.i; t.onclick=(e)=>{ if(g._dragged)return; select(i,e); }; t.ondblclick=()=>openSingle(i);
   });
 }
 function buildListRows(g){
-  g.innerHTML = `<div class="dl-head"><span></span><span>이름</span><span>크기</span><span>DPI</span><span>용량</span><span>생성일</span></div>`
+  const head = images.length ? `<div class="dl-head"><span></span><span>이름</span><span>크기</span><span>DPI</span><span>용량</span><span>생성일</span></div>` : '';
+  g.innerHTML = (folderCards.length?folderStripHTML():'')
+   + head
    + images.map((im,i)=>`
     <div class="dl-row ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
       <span class="dl-thumb"><img data-i="${i}" draggable="false" alt=""></span>
@@ -815,6 +825,7 @@ function buildListRows(g){
       <span class="dl-size">${fmtSize(im.size)}</span>
       <span class="dl-date">${fmtDate(im.created)}</span>
     </div>`).join('');
+  wireFolderCards(g);
   g.querySelectorAll('.dl-row').forEach(r=>{
     const i=+r.dataset.i; r.onclick=(e)=>{ if(g._dragged)return; select(i,e); }; r.ondblclick=()=>openSingle(i);
   });
@@ -858,14 +869,17 @@ function parentPath(p){
   if(!par||par==='\\') return null;
   return par;
 }
-function renderFolderCards(g){
+function folderStripHTML(){
   const par = curFolder ? parentPath(curFolder) : null;
-  let html=`<div class="folder-note">이 폴더에는 이미지가 없어요. 하위 폴더 ${folderCards.length}개 — 더블클릭해서 들어가세요.</div>`;
-  if(par) html+=`<div class="folder-card up" data-up="1" title="${esc(par)}">${UP_SVG}<div class="fc-name">상위 폴더</div></div>`;
-  html+=folderCards.map((f,i)=>`<div class="folder-card" data-fi="${i}" title="${esc(f.path)}">${FOLDER_BIG_SVG}<div class="fc-name">${esc(f.name)}</div></div>`).join('');
-  g.innerHTML=html;
-  if(par){ const u=g.querySelector('.folder-card.up'); u.ondblclick=u.onclick=()=>navFolder(par); }
-  g.querySelectorAll('.folder-card[data-fi]').forEach(c=>{ const f=folderCards[+c.dataset.fi]; c.ondblclick=()=>navFolder(f.path); });
+  let cards='';
+  if(par) cards+=`<div class="folder-card up" data-up="1" title="${esc(par)}">${UP_SVG}<div class="fc-name">상위 폴더</div></div>`;
+  cards+=folderCards.map((f,i)=>`<div class="folder-card" data-fi="${i}" title="${esc(f.path)}">${FOLDER_BIG_SVG}<div class="fc-name">${esc(f.name)}</div></div>`).join('');
+  return `<div class="folder-strip"><div class="grid-sect">폴더 ${folderCards.length}</div><div class="folder-strip-grid">${cards}</div></div>`;
+}
+function wireFolderCards(g){
+  const par = curFolder ? parentPath(curFolder) : null;
+  if(par){ const u=g.querySelector('.folder-card.up'); if(u) u.ondblclick=u.onclick=()=>navFolder(par); }
+  g.querySelectorAll('.folder-card[data-fi]').forEach(c=>{ const f=folderCards[+c.dataset.fi]; if(f) c.ondblclick=()=>navFolder(f.path); });
 }
 async function navFolder(p){
   if(!API||!p)return;
@@ -873,9 +887,10 @@ async function navFolder(p){
   toast('폴더 읽는 중…');
   const r=await API.loadFolder(p);
   if(!r||!r.ok){ toast('폴더를 열 수 없습니다'); return; }
-  folderCards = r.count ? [] : (r.subfolders||[]);
-  if(!r.count){ if(mode!=='grid')setMode('grid'); renderGrid(); }
-  toast(r.count?`${r.count}장`:(folderCards.length?`하위 폴더 ${folderCards.length}개`:'이미지 없음'));
+  folderCards = r.subfolders || [];
+  if(mode!=='grid')setMode('grid'); renderGrid();
+  const parts=[]; if(r.count)parts.push(`${r.count}장`); if(folderCards.length)parts.push(`하위 폴더 ${folderCards.length}개`); if(!parts.length)parts.push('비어 있음');
+  toast(parts.join(' · '));
   const row=[...document.querySelectorAll('.trow')].find(t=>t.dataset.path&&t.dataset.path.replace(/[\\/]+$/,'').toLowerCase()===p.replace(/[\\/]+$/,'').toLowerCase());
   if(row){ document.querySelectorAll('.trow.sel').forEach(t=>t.classList.remove('sel')); row.classList.add('sel'); }
 }
@@ -952,9 +967,10 @@ function makeTreeNode(name,p,opts,depth){
     toast('폴더 읽는 중…');
     const r=await API.loadFolder(p);
     if(r&&r.ok){
-      folderCards = r.count ? [] : (r.subfolders||[]);
-      if(!r.count){ if(mode!=='grid')setMode('grid'); renderGrid(); }
-      toast(r.count?`${name} · ${r.count}장`:(folderCards.length?`${name} · 하위 폴더 ${folderCards.length}개`:`${name} · 이미지 없음`));
+      folderCards = r.subfolders || [];
+      if(mode!=='grid')setMode('grid'); renderGrid();
+      const parts=[]; if(r.count)parts.push(`${r.count}장`); if(folderCards.length)parts.push(`하위 폴더 ${folderCards.length}개`); if(!parts.length)parts.push('비어 있음');
+      toast(`${name} · ${parts.join(' · ')}`);
     }
     else toast('폴더를 열 수 없습니다');
   };
@@ -1603,9 +1619,10 @@ $('#folderBtn').onclick=async()=>{
   if(!API){ toast('폴더 열기는 데스크톱 빌드에서 가능합니다'); return; }
   const r=await API.openFolder();
   if(r&&r.ok){
-    curFolder=r.dir; folderCards = r.count ? [] : (r.subfolders||[]);
-    if(!r.count){ if(mode!=='grid')setMode('grid'); renderGrid(); }
-    toast(r.count?`${r.count}장`:(folderCards.length?`하위 폴더 ${folderCards.length}개`:'이미지 없음'));
+    curFolder=r.dir; folderCards = r.subfolders || [];
+    if(mode!=='grid')setMode('grid'); renderGrid();
+    const parts=[]; if(r.count)parts.push(`${r.count}장`); if(folderCards.length)parts.push(`하위 폴더 ${folderCards.length}개`); if(!parts.length)parts.push('비어 있음');
+    toast(parts.join(' · '));
   }
 };
 
