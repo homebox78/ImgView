@@ -317,6 +317,12 @@ ipcMain.handle('delete-file', async (event, srcPath) => {
 
 ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPath(dir); });
 ipcMain.handle('show-in-folder', async (event, p) => { if (p) shell.showItemInFolder(p); });
+ipcMain.handle('toggle-fullscreen', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return false;
+  win.setFullScreen(!win.isFullScreen());
+  return win.isFullScreen();
+});
 
 // ===== 폴더 트리(탐색기) =====
 function execText(file, args, timeout = 7000) {

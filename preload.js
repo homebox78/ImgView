@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('imgview', {
   deleteFile:    (p)       => ipcRenderer.invoke('delete-file', p),
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),
+  toggleFullscreen:()      => ipcRenderer.invoke('toggle-fullscreen'),
   // 폴더 트리(탐색기)
   listDrives:    ()        => ipcRenderer.invoke('list-drives'),
   listNetwork:   ()        => ipcRenderer.invoke('list-network'),
