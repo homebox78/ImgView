@@ -144,6 +144,14 @@ body.col-resizing{cursor:col-resize;user-select:none}
 .pv-meta{flex:none}
 .pv-name{font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-dim{font-size:12px;color:var(--text-faint);margin-top:4px}
+.pv-exif{font-size:12px;max-height:200px;overflow:auto;border-top:1px solid var(--border-soft);padding-top:12px}
+.pv-exif:empty{display:none}
+.pv-exif .ex-title{font-size:11.5px;font-weight:700;color:var(--text-dim);margin-bottom:8px}
+.pv-exif .ex-row{display:flex;gap:8px;padding:3px 0;line-height:1.4}
+.pv-exif .ex-k{flex:0 0 44px;color:var(--text-faint)}
+.pv-exif .ex-v{flex:1;color:var(--text-dim);word-break:break-word}
+.pv-exif .ex-map{color:var(--accent);cursor:pointer;text-decoration:none;margin-left:6px;font-weight:600}
+.pv-exif .ex-empty{color:var(--text-faint);font-size:11.5px}
 .pv-open{width:100%;justify-content:center;height:40px;font-size:13px}
 
 /* === 단독 크게보기 화면 === */
@@ -702,6 +710,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <script src="jspdf.umd.min.js"></script>
 <script src="heic2any.min.js"></script>
 <script src="ag-psd.min.js"></script>
+<script src="exifr.umd.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const API = window.imgview || null;
@@ -864,6 +873,51 @@ async function getDPI(im){
     }
   }catch(e){}
   return im.dpi;
+}
+// ---- EXIF (촬영정보) ----
+async function getExif(im){
+  if(im.exif!==undefined) return im.exif;
+  im.exif=null;
+  if(typeof exifr==='undefined') return null;
+  try{
+    const src = im.path ? fileURL(im.path) : im.url;   // 원본 파일에서 (HEIC EXIF 포함)
+    const buf = await (await fetch(src)).arrayBuffer();
+    im.exif = await exifr.parse(buf, { tiff:true, exif:true, gps:true, ifd0:true, makerNote:false, userComment:false }) || null;
+  }catch(e){ im.exif=null; }
+  return im.exif;
+}
+function fmtExifDate(dt){
+  let d=dt;
+  if(typeof dt==='string'){ const m=dt.match(/(\d{4})[:-](\d{2})[:-](\d{2})[ T](\d{2}):(\d{2})/); if(m) d=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]); }
+  if(!(d instanceof Date)||isNaN(d)) return String(dt);
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function exifHTML(x){
+  const row=(k,val)=>`<div class="ex-row"><span class="ex-k">${k}</span><span class="ex-v">${val}</span></div>`;
+  if(!x) return '<div class="ex-empty">촬영 정보(EXIF) 없음</div>';
+  let h='';
+  const make=(x.Make||'').toString().trim(), model=(x.Model||'').toString().trim();
+  const cam = (model && make && model.toLowerCase().startsWith(make.toLowerCase())) ? model : [make,model].filter(Boolean).join(' ').trim();
+  if(cam) h+=row('카메라', esc(cam));
+  const dt=x.DateTimeOriginal||x.CreateDate||x.DateTime;
+  if(dt) h+=row('촬영', esc(fmtExifDate(dt)));
+  const st=[];
+  if(x.FNumber) st.push('f/'+(+x.FNumber).toFixed(1).replace(/\.0$/,''));
+  if(x.ExposureTime!=null){ const e=+x.ExposureTime; st.push(e>=1?(+e.toFixed(1))+'s':'1/'+Math.round(1/e)+'s'); }
+  if(x.ISO) st.push('ISO '+x.ISO);
+  if(x.FocalLength) st.push(Math.round(x.FocalLength)+'mm');
+  if(st.length) h+=row('설정', st.join(' · '));
+  if(x.LensModel) h+=row('렌즈', esc(String(x.LensModel)));
+  if(typeof x.latitude==='number' && typeof x.longitude==='number'){
+    const lat=x.latitude.toFixed(5), lng=x.longitude.toFixed(5);
+    h+=row('위치', `${lat}, ${lng} <a class="ex-map" data-lat="${x.latitude}" data-lng="${x.longitude}">지도</a>`);
+  }
+  return h ? '<div class="ex-title">사진 정보</div>'+h : '<div class="ex-empty">촬영 정보(EXIF) 없음</div>';
+}
+function wireExifMap(box){
+  const a=box.querySelector('.ex-map');
+  if(a) a.onclick=()=>{ if(API&&API.openExternal) API.openExternal(`https://maps.google.com/?q=${a.dataset.lat},${a.dataset.lng}`); };
 }
 
 // ---- 모드 전환 ----
@@ -1173,12 +1227,14 @@ function renderPreview(){
       <div class="pv-name" title="${esc(im.name)}">${esc(im.name)}</div>
       <div class="pv-dim" id="pvDim">${im.dw?`${im.dw} × ${im.dh}`:'…'}</div>
     </div>
+    <div class="pv-exif" id="pvExif"></div>
     <button class="tbtn accent pv-open" id="pvOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>크게 보기</button>`;
   const pv=$('#pvImg');
   pv.ondblclick=()=>openSingle(idx);
   $('#pvOpen').onclick=()=>openSingle(idx);
   if(!im.thumb) makeThumb(im).then(t=>{ if(current()===im) pv.src=t; });
   ensureDims(im).then(d=>{ if(current()===im) $('#pvDim').textContent=`${d.w} × ${d.h}`; });
+  getExif(im).then(x=>{ if(current()===im){ const box=$('#pvExif'); if(box){ box.innerHTML=exifHTML(x); wireExifMap(box); } } });
 }
 
 // ---- 단독 크게보기 ----
@@ -1374,7 +1430,7 @@ $('#cropApply').onclick=async()=>{
   const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
   if(r.ok){
     if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url);
-    im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.dpi=undefined; im.size=blob.size;
+    im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.dpi=undefined; im.exif=undefined; im.size=blob.size;
     if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
     toast(`${nw}×${nh} 자르기 완료 (원본은 ImgZipView_원본)`);
   } else toast('저장 실패: '+(r.error||''));
@@ -1534,7 +1590,7 @@ $('#wmApply').onclick=async()=>{
     const type=ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
     const blob=await new Promise(r=>cv.toBlob(r,type, type==='image/jpeg'?0.95:undefined));
     const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
-    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.size=blob.size; im.dpi=undefined; ok++; }
+    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.size=blob.size; im.dpi=undefined; im.exif=undefined; ok++; }
     else fail++;
   }
   if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
@@ -1582,7 +1638,7 @@ $('#rzApply').onclick=async()=>{
     else{const t=+$('#rzLong').value||Math.max(w,h);if(w>=h){h=Math.round(h*t/w);w=t;}else{w=Math.round(w*t/h);h=t;}}
     const blob=await renderToBlob(im,0,{w,h});
     const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
-    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.dpi=undefined; im.size=blob.size; ok++; lastDim=`${w}×${h}`; }
+    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.dpi=undefined; im.exif=undefined; im.size=blob.size; ok++; lastDim=`${w}×${h}`; }
     else fail++;
   }
   renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} else if(mode==='single')showSingle();
@@ -1685,7 +1741,7 @@ async function doCompress(){
       URL.revokeObjectURL(im.url);
       im.url=URL.createObjectURL(it._blob);
       im.name=it.name; im.path=res.newPath; im.size=it._blob.size;
-      im.thumb=null; im.est=undefined; im.dw=undefined; im.dh=undefined; im.dpi=undefined;
+      im.thumb=null; im.est=undefined; im.dw=undefined; im.dh=undefined; im.dpi=undefined; im.exif=undefined;
     }
     renderGrid();
     if(mode==='grid'){ syncSelClasses(); renderPreview(); } else if(mode==='single'){ showSingle(); }

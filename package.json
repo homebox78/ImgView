@@ -48,6 +48,7 @@
       "jspdf.umd.min.js",
       "heic2any.min.js",
       "ag-psd.min.js",
+      "exifr.umd.js",
       "icon.png",
       "icon.ico",
       "fonts/**/*"

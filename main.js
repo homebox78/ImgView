@@ -341,6 +341,7 @@ ipcMain.handle('delete-file', async (event, srcPath) => {
 
 ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPath(dir); });
 ipcMain.handle('show-in-folder', async (event, p) => { if (p) shell.showItemInFolder(p); });
+ipcMain.handle('open-external', async (event, url) => { if (url && /^https?:\/\//i.test(url)) shell.openExternal(url); });
 ipcMain.handle('toggle-fullscreen', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return false;

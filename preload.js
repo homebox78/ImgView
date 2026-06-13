@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('imgview', {
   deleteFile:    (p)       => ipcRenderer.invoke('delete-file', p),
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),
+  openExternal:  (u)       => ipcRenderer.invoke('open-external', u),
   toggleFullscreen:()      => ipcRenderer.invoke('toggle-fullscreen'),
   toggleAlwaysOnTop:()     => ipcRenderer.invoke('toggle-always-on-top'),
   // 폴더 트리(탐색기)
