@@ -530,7 +530,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <div class="dialog">
     <h3>포맷변환</h3>
     <div class="field"><label>포맷</label>
-      <select id="cvFmt"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option><option value="bmp">BMP</option></select></div>
+      <select id="cvFmt"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option><option value="bmp">BMP</option><option value="pdf">PDF (여러 장=여러 페이지)</option></select></div>
     <div class="field" id="cvQRow"><label>품질 <span id="cvQVal" style="color:var(--accent)">90</span></label><input type="range" id="cvQ" min="40" max="100" value="90"></div>
     <div class="dlg-actions"><button class="ghost" data-close>취소</button><button class="primary" id="cvApply">변환 저장</button></div>
   </div>
@@ -674,6 +674,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <div class="toast" id="toast"></div>
 
 <script src="UTIF.min.js"></script>
+<script src="jspdf.umd.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const API = window.imgview || null;
@@ -1531,7 +1532,21 @@ $('#rzApply').onclick=async()=>{
 
 // ---- 포맷변환 ----
 $('#convBtn').onclick=()=>{$('#convScrim').classList.add('show');};
-$('#cvFmt').onchange=e=>$('#cvQRow').style.display=(e.target.value==='png'||e.target.value==='bmp')?'none':'block';
+$('#cvFmt').onchange=e=>$('#cvQRow').style.display=(e.target.value==='png'||e.target.value==='bmp'||e.target.value==='pdf')?'none':'block';
+// 여러 이미지를 하나의 PDF로 (각 이미지가 한 페이지)
+async function buildPdf(targets){
+  const { jsPDF } = window.jspdf;
+  let pdf=null;
+  for(const im of targets){
+    const img=new Image(); img.src=await ensureRenderable(im); await img.decode();
+    const w=img.naturalWidth, h=img.naturalHeight, orient=w>=h?'l':'p';
+    if(!pdf) pdf=new jsPDF({unit:'px', format:[w,h], orientation:orient});
+    else pdf.addPage([w,h], orient);
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0);
+    pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,w,h);
+  }
+  return pdf.output('blob');
+}
 $('#cvQ').oninput=e=>$('#cvQVal').textContent=e.target.value;
 $('#cvApply').onclick=async()=>{
   const sel=(mode==='grid')?selIndices():[idx];
@@ -1540,10 +1555,17 @@ $('#cvApply').onclick=async()=>{
   const fmt=$('#cvFmt').value, q=(+$('#cvQ').value)/100;
   closeDialogs();
   const files=[];
-  for(const im of targets){
-    const blob=await renderToBlob(im,0,null,fmt,q);
-    const base=im.name.replace(/\.[^.]+$/,'');
-    files.push({name:`${base}.${fmt}`,data:await blob.arrayBuffer()});
+  if(fmt==='pdf'){
+    toast('PDF 만드는 중…');
+    const blob=await buildPdf(targets);
+    const base=targets.length>1?`이미지_${targets.length}장`:targets[0].name.replace(/\.[^.]+$/,'');
+    files.push({name:`${base}.pdf`,data:await blob.arrayBuffer()});
+  } else {
+    for(const im of targets){
+      const blob=await renderToBlob(im,0,null,fmt,q);
+      const base=im.name.replace(/\.[^.]+$/,'');
+      files.push({name:`${base}.${fmt}`,data:await blob.arrayBuffer()});
+    }
   }
   if(!API||!API.saveFiles){
     files.forEach(f=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f.data]));a.download=f.name;a.click();});

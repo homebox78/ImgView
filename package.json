@@ -45,6 +45,7 @@
       "preload.js",
       "index.html",
       "UTIF.min.js",
+      "jspdf.umd.min.js",
       "icon.png",
       "icon.ico",
       "fonts/**/*"
