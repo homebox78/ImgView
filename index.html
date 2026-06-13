@@ -367,6 +367,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .wm-grid button::after{content:'';position:absolute;width:6px;height:6px;border-radius:50%;background:var(--text-faint);top:50%;left:50%;transform:translate(-50%,-50%)}
 .wm-grid button.on::after{background:var(--accent)}
 .wm-col.on{border-color:var(--accent);color:var(--accent)}
+.wm-seg{display:flex;gap:6px;margin:-2px 0 14px}
+.wm-tab{flex:1;padding:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);
+  border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600}
+.wm-tab.on{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -623,19 +627,29 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <div class="dialog dialog-wide">
     <h3>워터마크 <span id="wmCount" class="dim-cnt"></span></h3>
     <div class="wm-preview"><canvas id="wmCanvas"></canvas></div>
-    <div class="field"><label>문구</label><input class="inp" id="wmText" type="text" value="© ImgZipView" spellcheck="false"></div>
+    <div class="wm-seg" id="wmTypeSeg"><button type="button" class="wm-tab on" data-type="text">텍스트</button><button type="button" class="wm-tab" data-type="logo">이미지(로고)</button></div>
+    <div class="field" id="wmTextRow"><label>문구</label><input class="inp" id="wmText" type="text" value="© ImgZipView" spellcheck="false"></div>
+    <div class="field" id="wmLogoRow" style="display:none"><label>로고 PNG (투명 배경 권장)</label>
+      <div style="display:flex;gap:8px;align-items:center"><button type="button" class="chip" id="wmLogoPick">파일 선택</button><span id="wmLogoName" style="font-size:12px;color:var(--text-faint)">선택 안 됨</span></div>
+      <input type="file" id="wmLogoFile" accept="image/*" hidden>
+    </div>
+    <div class="wm-seg" id="wmModeSeg"><button type="button" class="wm-tab on" data-mode="single">단일</button><button type="button" class="wm-tab" data-mode="pattern">패턴(반복)</button></div>
     <div class="wm-row">
-      <div class="field" style="margin-bottom:0"><label>위치</label>
+      <div class="field" id="wmPosRow" style="margin-bottom:0"><label>위치</label>
         <div class="wm-grid" id="wmGrid">
           <button type="button" data-pos="tl"></button><button type="button" data-pos="tc"></button><button type="button" data-pos="tr"></button>
           <button type="button" data-pos="ml"></button><button type="button" data-pos="mc"></button><button type="button" data-pos="mr"></button>
           <button type="button" data-pos="bl"></button><button type="button" data-pos="bc"></button><button type="button" data-pos="br" class="on"></button>
         </div>
       </div>
+      <div class="field" id="wmPatRow" style="display:none;margin-bottom:0;align-self:start"><label>기울기 <span id="wmAngVal" style="color:var(--accent)">30</span>°</label>
+        <input type="range" id="wmAngle" min="0" max="60" value="30" style="width:120px">
+        <div style="font-size:11.5px;color:var(--text-faint);margin-top:6px;line-height:1.4">이미지 전체에<br>반복 배치됩니다</div>
+      </div>
       <div class="field" style="flex:1;margin-bottom:0">
-        <label>크기 <span id="wmSizeVal" style="color:var(--accent)">5</span>%</label><input type="range" id="wmSize" min="2" max="15" value="5">
+        <label>크기 <span id="wmSizeVal" style="color:var(--accent)">5</span>%</label><input type="range" id="wmSize" min="2" max="25" value="5">
         <label style="margin-top:12px">불투명도 <span id="wmOpVal" style="color:var(--accent)">60</span>%</label><input type="range" id="wmOp" min="10" max="100" value="60">
-        <div style="display:flex;gap:8px;margin-top:12px">
+        <div style="display:flex;gap:8px;margin-top:12px" id="wmColRow">
           <button type="button" class="chip wm-col on" data-col="#ffffff">흰색</button>
           <button type="button" class="chip wm-col" data-col="#000000">검정</button>
         </div>
@@ -1361,27 +1375,45 @@ function printImage(im){
   if(img.complete) setTimeout(go,250); else { img.onload=()=>setTimeout(go,200); img.onerror=()=>{ ifr.remove(); toast('인쇄 실패'); }; }
 }
 
-// ---- 워터마크 ----
-let wmImg=null, wmPos='br', wmColor='#ffffff';
-function wmOpts(){ return { text:$('#wmText').value||'', size:+$('#wmSize').value, opacity:+$('#wmOp').value, color:wmColor, pos:wmPos }; }
-// 캔버스에 워터마크 텍스트를 그림 (cw/ch = 캔버스 크기 기준)
-function drawWatermark(ctx, cw, ch, o){
-  if(!o.text) return;
+// ---- 워터마크 (텍스트/로고 · 단일/패턴) ----
+let wmImg=null, wmPos='br', wmColor='#ffffff', wmType='text', wmMode='single', wmLogo=null;
+function wmOpts(){ return { type:wmType, mode:wmMode, text:$('#wmText').value||'', logo:wmLogo,
+  size:+$('#wmSize').value, opacity:+$('#wmOp').value, color:wmColor, pos:wmPos, angle:+$('#wmAngle').value }; }
+// 한 도장(stamp)의 크기와 그리기 함수 반환 (텍스트 또는 로고 이미지)
+function wmStamp(ctx, cw, o){
+  if(o.type==='logo'){
+    if(!o.logo||!o.logo.naturalWidth) return null;
+    const sw=Math.max(12, Math.round(cw*o.size/100));
+    const sh=Math.max(1, Math.round(sw*(o.logo.naturalHeight/o.logo.naturalWidth)));
+    return { w:sw, h:sh, draw:(x,y)=>ctx.drawImage(o.logo, x, y, sw, sh) };
+  }
+  if(!o.text) return null;
   const fontPx=Math.max(9, Math.round(cw*o.size/100));
-  ctx.save();
   ctx.font=`600 ${fontPx}px "Pretendard Variable",Pretendard,-apple-system,sans-serif`;
-  ctx.textBaseline='alphabetic';
-  const tw=ctx.measureText(o.text).width, th=fontPx;
-  const margin=Math.round(fontPx*0.45)+Math.round(cw*0.012);
-  let x,y;
-  const col=o.pos[1], row=o.pos[0];
-  if(col==='l') x=margin; else if(col==='c') x=(cw-tw)/2; else x=cw-tw-margin;
-  if(row==='t') y=margin+th*0.82; else if(row==='m') y=(ch+th*0.7)/2; else y=ch-margin;
+  ctx.textBaseline='top';
+  const tw=ctx.measureText(o.text).width, th=fontPx*1.25;
+  return { w:tw, h:th, draw:(x,y)=>{ ctx.fillStyle=o.color; ctx.fillText(o.text, x, y); } };
+}
+function drawWatermark(ctx, cw, ch, o){
+  const st=wmStamp(ctx, cw, o); if(!st) return;
+  ctx.save();
   ctx.globalAlpha=o.opacity/100;
-  ctx.shadowColor=o.color==='#ffffff'?'rgba(0,0,0,.55)':'rgba(255,255,255,.55)';
-  ctx.shadowBlur=Math.max(1,Math.round(fontPx*0.14));
-  ctx.fillStyle=o.color;
-  ctx.fillText(o.text, x, y);
+  if(o.type==='text'){
+    ctx.shadowColor=o.color==='#ffffff'?'rgba(0,0,0,.5)':'rgba(255,255,255,.5)';
+    ctx.shadowBlur=Math.max(1,Math.round(cw*o.size/100*0.14));
+  }
+  if(o.mode==='pattern'){
+    ctx.translate(cw/2,ch/2); ctx.rotate((o.angle||0)*Math.PI/180); ctx.translate(-cw/2,-ch/2);
+    const gapX=st.w+Math.max(24, cw*0.05), gapY=st.h+Math.max(24, ch*0.05), diag=Math.ceil(Math.hypot(cw,ch));
+    for(let y=-diag; y<ch+diag; y+=gapY)
+      for(let x=-diag; x<cw+diag; x+=gapX) st.draw(x,y);
+  }else{
+    const margin=Math.round(st.h*0.35)+Math.round(cw*0.012);
+    const col=o.pos[1], row=o.pos[0];
+    const x= col==='l'?margin : col==='c'?(cw-st.w)/2 : cw-st.w-margin;
+    const y= row==='t'?margin : row==='m'?(ch-st.h)/2 : ch-st.h-margin;
+    st.draw(x,y);
+  }
   ctx.restore();
 }
 function renderWmPreview(){
@@ -1403,16 +1435,34 @@ function openWm(){
   $('#wmScrim').classList.add('show');
 }
 $('#wmBtn').onclick=openWm;
-['wmText','wmSize','wmOp'].forEach(id=>$('#'+id).oninput=()=>{ $('#wmSizeVal').textContent=$('#wmSize').value; $('#wmOpVal').textContent=$('#wmOp').value; renderWmPreview(); });
+['wmText','wmSize','wmOp','wmAngle'].forEach(id=>{ const e=$('#'+id); if(e) e.oninput=()=>{ $('#wmSizeVal').textContent=$('#wmSize').value; $('#wmOpVal').textContent=$('#wmOp').value; $('#wmAngVal').textContent=$('#wmAngle').value; renderWmPreview(); }; });
 document.querySelectorAll('#wmGrid button').forEach(b=>b.onclick=()=>{ wmPos=b.dataset.pos; document.querySelectorAll('#wmGrid button').forEach(x=>x.classList.toggle('on',x===b)); renderWmPreview(); });
 document.querySelectorAll('.wm-col').forEach(b=>b.onclick=()=>{ wmColor=b.dataset.col; document.querySelectorAll('.wm-col').forEach(x=>x.classList.toggle('on',x===b)); renderWmPreview(); });
+document.querySelectorAll('#wmTypeSeg .wm-tab').forEach(b=>b.onclick=()=>{
+  wmType=b.dataset.type; document.querySelectorAll('#wmTypeSeg .wm-tab').forEach(x=>x.classList.toggle('on',x===b));
+  $('#wmTextRow').style.display=wmType==='text'?'':'none'; $('#wmLogoRow').style.display=wmType==='logo'?'':'none';
+  $('#wmColRow').style.display=wmType==='text'?'flex':'none'; renderWmPreview();
+});
+document.querySelectorAll('#wmModeSeg .wm-tab').forEach(b=>b.onclick=()=>{
+  wmMode=b.dataset.mode; document.querySelectorAll('#wmModeSeg .wm-tab').forEach(x=>x.classList.toggle('on',x===b));
+  $('#wmPosRow').style.display=wmMode==='single'?'':'none'; $('#wmPatRow').style.display=wmMode==='pattern'?'':'none'; renderWmPreview();
+});
+$('#wmLogoPick').onclick=()=>$('#wmLogoFile').click();
+$('#wmLogoFile').onchange=e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  $('#wmLogoName').textContent=f.name;
+  const url=URL.createObjectURL(f), img=new Image();
+  img.onload=()=>{ if(wmLogo&&wmLogo._u)URL.revokeObjectURL(wmLogo._u); wmLogo=img; wmLogo._u=url; renderWmPreview(); };
+  img.onerror=()=>toast('이미지를 불러올 수 없어요'); img.src=url;
+};
 $('#wmApply').onclick=async()=>{
   const sel=(mode==='grid')?selIndices():[idx];
   const targets=sel.map(i=>images[i]).filter(im=>im&&im.path);
   const o=wmOpts();
   closeDialogs();
   if(!API||!targets.length){ toast('적용할 이미지가 없어요'); return; }
-  if(!o.text){ toast('워터마크 문구를 입력하세요'); return; }
+  if(o.type==='text' && !o.text){ toast('워터마크 문구를 입력하세요'); return; }
+  if(o.type==='logo' && !o.logo){ toast('로고 PNG를 선택하세요'); return; }
   let ok=0,fail=0;
   for(const i of sel){
     const im=images[i]; if(!im||!im.path)continue;
