@@ -634,6 +634,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
 <div class="toast" id="toast"></div>
 
+<script src="UTIF.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const API = window.imgview || null;
@@ -681,12 +682,36 @@ function mimeOf(name){
   return {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',
     bmp:'image/bmp',svg:'image/svg+xml',ico:'image/x-icon',tif:'image/tiff',tiff:'image/tiff'}[ext]||'';
 }
+// 로컬/UNC 경로 → file:// URL (브라우저가 지연 로딩)
+function fileURL(p){
+  if(!p) return '';
+  const u=p.replace(/\\/g,'/');
+  if(u.startsWith('//')){ const a=u.slice(2).split('/'); return 'file://'+a[0]+'/'+a.slice(1).map(encodeURIComponent).join('/'); }
+  const a=u.split('/'); return 'file:///'+a[0]+'/'+a.slice(1).map(encodeURIComponent).join('/');
+}
+const TIFF_RE=/\.tiff?$/i;
+// TIFF 등 브라우저가 못 그리는 포맷은 UTIF로 디코드해 PNG blob으로 교체(최초 1회)
+async function ensureRenderable(im){
+  if(im._renderable || !TIFF_RE.test(im.name) || typeof UTIF==='undefined') return im.url;
+  im._renderable=true;
+  try{
+    const buf=await (await fetch(im.url)).arrayBuffer();
+    const ifds=UTIF.decode(buf); UTIF.decodeImage(buf, ifds[0]);
+    const rgba=UTIF.toRGBA8(ifds[0]); const w=ifds[0].width, h=ifds[0].height;
+    const c=el('canvas'); c.width=w; c.height=h;
+    const x=c.getContext('2d'); const d=x.createImageData(w,h); d.data.set(rgba); x.putImageData(d,0,0);
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+    if(blob){ im.url=URL.createObjectURL(blob); im.dw=w; im.dh=h; }
+  }catch(e){}
+  return im.url;
+}
 // 작은 썸네일 생성(캐시) — 그리드 스크롤/미리보기 속도용
 async function makeThumb(im){
   if(im.thumb) return im.thumb;
   if(im._thumbing) return im._thumbing;
   im._thumbing=(async()=>{
     try{
+      await ensureRenderable(im);
       const TW=360; let canvas;
       try{
         const blob=await (await fetch(im.url)).blob();
@@ -1044,12 +1069,25 @@ function showSingle(){
   brightness=100; $('#brightR').value=100; $('#brightVal').textContent='100%';
   const im=current(), el=$('#mainImg');
   el.src=im.url; applyBrightness();
+  if(TIFF_RE.test(im.name)) ensureRenderable(im).then(u=>{ if(current()===im) el.src=u; });
+  preloadNeighbors();
   $('#navPrev').style.display=$('#navNext').style.display=images.length>1?'grid':'none';
   applyTransform();
   el.onload=updateStatus;
   setBtns(true);
   document.title=`${im.name} — ImgZipView`;
   updateZipBar(im);
+}
+// 다음/이전 1~2장을 미리 디코드 → 단독뷰 넘김을 끊김 없이
+let _preload=[];
+function preloadNeighbors(){
+  _preload=[];
+  if(images.length<2) return;
+  for(const o of [1,-1,2,-2]){
+    const im=images[(idx+o+images.length)%images.length]; if(!im) continue;
+    if(TIFF_RE.test(im.name)){ ensureRenderable(im); continue; }
+    const pre=new Image(); pre.decoding='async'; pre.src=im.url; _preload.push(pre);
+  }
 }
 function applyBrightness(){ $('#mainImg').style.filter='brightness('+(brightness/100)+')'; }
 $('#brightR').oninput=e=>{ brightness=+e.target.value; $('#brightVal').textContent=brightness+'%'; applyBrightness(); };
@@ -1671,7 +1709,8 @@ bodyEl.addEventListener('drop',e=>{
 if(API&&API.onAddFiles){
   API.onAddFiles((files,opts)=>{
     if(opts&&opts.replace){ clearImages(); if(mode==='single')setMode('grid'); }
-    const list=files.map(f=>({name:f.name,path:f.path,size:f.size,created:f.created,url:URL.createObjectURL(new Blob([f.data],{type:mimeOf(f.name)}))}));
+    const list=files.map(f=>({name:f.name,path:f.path,size:f.size,created:f.created,
+      url: f.data ? URL.createObjectURL(new Blob([f.data],{type:mimeOf(f.name)})) : fileURL(f.path)}));
     addFiles(list);
   });
 }

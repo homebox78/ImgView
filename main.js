@@ -16,10 +16,10 @@ async function collectImagePaths(argv) {
       const st = await fs.stat(a);
       if (st.isDirectory()) {
         for (const e of await fs.readdir(a)) {
-          if (IMG_RE.test(e)) out.push(path.join(a, e));
+          if (IMG_RE.test(e)) out.push(path.resolve(a, e));
         }
       } else if (IMG_RE.test(a)) {
-        out.push(a);
+        out.push(path.resolve(a));
       }
     } catch (e) {}
   }
@@ -34,7 +34,8 @@ async function sendFilesToRenderer(win, paths, replace = false) {
   for (const p of paths) {
     try {
       const st = await fs.stat(p);
-      out.push({ name: path.basename(p), path: p, data: await fs.readFile(p),
+      // 바이트를 미리 읽지 않음 → 렌더러가 file:// 로 지연 로딩(큰 폴더/수천 장 대응)
+      out.push({ name: path.basename(p), path: p,
                  size: st.size, created: st.birthtimeMs || st.mtimeMs, modified: st.mtimeMs });
     } catch (e) {}
   }
