@@ -323,6 +323,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .ctxmenu .csep{height:1px;background:var(--border);margin:5px 4px}
 /* 슬라이드쇼 표시 */
 .slideshow-on #slideBtn{color:var(--accent)}
+/* 자르기(크롭) 오버레이 */
+.cropscrim.show{flex-direction:column;align-items:stretch;justify-content:stretch}
+.crop-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;padding:20px}
+#cropImg{max-width:94%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.crop-box{position:absolute;border:1.5px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.58);display:none}
+.crop-box::after{content:'';position:absolute;inset:0;border:1px dashed rgba(255,255,255,.6);pointer-events:none}
+.crop-bar{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-top:1px solid var(--border)}
+.crop-bar #cropInfo{color:var(--text-faint);font-size:12.5px;margin-right:auto}
 </style>
 </head>
 <body>
@@ -354,6 +362,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
         <button class="tbtn icon" id="rotR" disabled title="오른쪽 회전 (Ctrl+T)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15a9 9 0 1 1-2.13-9.36L23 10"/></svg></button>
+        <button class="tbtn icon" id="flipH" disabled title="좌우 반전">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 7l-4 5 4 5z"/><path d="M16 7l4 5-4 5z"/></svg></button>
+        <button class="tbtn icon" id="flipV" disabled title="상하 반전">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7 8l5-4 5 4z"/><path d="M7 16l5 4 5-4z"/></svg></button>
+        <button class="tbtn" id="cropBtn" disabled title="자르기 (크롭)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>
+          자르기</button>
         <button class="tbtn" id="resizeBtn" disabled title="크기변경 (Ctrl+R)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
           크기변경</button>
@@ -521,6 +536,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
     </div>
     <div class="field"><label>미리보기</label><div class="br-preview" id="brPreview"></div></div>
     <div class="dlg-actions"><button class="ghost" data-close>취소</button><button class="primary" id="brApply">모두 변경</button></div>
+  </div>
+</div>
+
+<!-- 자르기(크롭) 오버레이 -->
+<div class="scrim cropscrim" id="cropScrim">
+  <div class="crop-wrap" id="cropWrap">
+    <img id="cropImg" draggable="false" alt="">
+    <div class="crop-box" id="cropBox"></div>
+  </div>
+  <div class="crop-bar">
+    <span id="cropInfo">이미지 위에서 드래그해 자를 영역을 선택하세요</span>
+    <button class="ghost" data-close>취소</button>
+    <button class="primary" id="cropApply">자르기 적용</button>
   </div>
 </div>
 
@@ -945,7 +973,7 @@ function updateStatus(){
     else $('#statLeft').innerHTML=`<b>${images.length}장</b> · 더블클릭=크게보기 · Ctrl/Shift+클릭으로 여러 개 선택`;
   }
 }
-function setBtns(on){['rotL','rotR','resizeBtn','convBtn','compBtn','renameBtn','delBtn'].forEach(id=>$('#'+id).disabled=!on);}
+function setBtns(on){['rotL','rotR','flipH','flipV','cropBtn','resizeBtn','convBtn','compBtn','renameBtn','delBtn'].forEach(id=>{const e=$('#'+id);if(e)e.disabled=!on;});}
 
 // 편집 후 화면 갱신(그리드 타일·미리보기·단독뷰 동시)
 function refreshViews(){
@@ -995,8 +1023,81 @@ async function rotateSave(deg){
 $('#rotL').onclick=()=>rotateSave(-90);
 $('#rotR').onclick=()=>rotateSave(90);
 
+// ---- 반전(좌우/상하) 후 저장 — 선택 전체 일괄 ----
+async function flipSave(axis){   // axis: 'h' | 'v'
+  if(!API){ toast('데스크톱 빌드에서 가능합니다'); return; }
+  const sel=(mode==='grid')?selIndices():[idx];
+  const flip = axis==='h' ? {h:true,v:false} : {h:false,v:true};
+  let ok=0,fail=0;
+  for(const i of sel){
+    const im=images[i]; if(!im||!im.path)continue;
+    const blob=await renderToBlob(im,0,null,null,0.95,flip);
+    const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
+    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); ok++; }
+    else fail++;
+  }
+  if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
+  toast(ok? `${axis==='h'?'좌우':'상하'}반전 ${ok>1?ok+'개 ':''}완료${fail?` · ${fail}개 실패`:''}` : '저장 실패');
+}
+$('#flipH').onclick=()=>flipSave('h');
+$('#flipV').onclick=()=>flipSave('v');
+
+// ---- 자르기(크롭) ----
+const cropWrap=$('#cropWrap'), cropBox=$('#cropBox'), cropImg=$('#cropImg');
+let cropDragging=false, cStartX=0, cStartY=0, cropRect=null;
+function openCrop(){
+  const im=current(); if(!im||!im.path){ toast('자를 이미지를 선택하세요'); return; }
+  if(!API){ toast('데스크톱 빌드에서 가능합니다'); return; }
+  cropRect=null; cropBox.style.display='none';
+  $('#cropInfo').textContent='이미지 위에서 드래그해 자를 영역을 선택하세요';
+  cropImg.src=im.url;
+  $('#cropScrim').classList.add('show');
+}
+$('#cropBtn').onclick=openCrop;
+function clampToImg(x,y){ const ir=cropImg.getBoundingClientRect(); return [Math.max(ir.left,Math.min(x,ir.right)),Math.max(ir.top,Math.min(y,ir.bottom))]; }
+cropWrap.addEventListener('mousedown',e=>{
+  const ir=cropImg.getBoundingClientRect();
+  if(e.clientX<ir.left||e.clientX>ir.right||e.clientY<ir.top||e.clientY>ir.bottom)return;
+  cropDragging=true; cStartX=e.clientX; cStartY=e.clientY; cropBox.style.display='block'; e.preventDefault();
+});
+window.addEventListener('mousemove',e=>{
+  if(!cropDragging)return;
+  const [x,y]=clampToImg(e.clientX,e.clientY), [sx,sy]=clampToImg(cStartX,cStartY);
+  const left=Math.min(sx,x), top=Math.min(sy,y), w=Math.abs(x-sx), h=Math.abs(y-sy);
+  cropRect={x:left,y:top,w,h};
+  const wr=cropWrap.getBoundingClientRect();
+  cropBox.style.left=(left-wr.left)+'px'; cropBox.style.top=(top-wr.top)+'px';
+  cropBox.style.width=w+'px'; cropBox.style.height=h+'px';
+  const ir=cropImg.getBoundingClientRect(); const scale=cropImg.naturalWidth/ir.width;
+  $('#cropInfo').textContent=`선택 영역: ${Math.round(w*scale)} × ${Math.round(h*scale)} px`;
+});
+window.addEventListener('mouseup',()=>{ cropDragging=false; });
+$('#cropApply').onclick=async()=>{
+  if(!cropRect||cropRect.w<4||cropRect.h<4){ toast('자를 영역을 드래그로 선택하세요'); return; }
+  const im=current(); if(!im||!im.path){ closeDialogs(); return; }
+  const ir=cropImg.getBoundingClientRect(), scale=cropImg.naturalWidth/ir.width;
+  let nx=Math.round((cropRect.x-ir.left)*scale), ny=Math.round((cropRect.y-ir.top)*scale);
+  let nw=Math.round(cropRect.w*scale), nh=Math.round(cropRect.h*scale);
+  nx=Math.max(0,Math.min(nx,cropImg.naturalWidth-1)); ny=Math.max(0,Math.min(ny,cropImg.naturalHeight-1));
+  nw=Math.max(1,Math.min(nw,cropImg.naturalWidth-nx)); nh=Math.max(1,Math.min(nh,cropImg.naturalHeight-ny));
+  closeDialogs();
+  const img=new Image(); img.src=im.url; await img.decode();
+  const cv=document.createElement('canvas'); cv.width=nw; cv.height=nh;
+  cv.getContext('2d').drawImage(img,nx,ny,nw,nh,0,0,nw,nh);
+  const ext=(im.name.split('.').pop()||'jpg').toLowerCase();
+  const type=ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
+  const blob=await new Promise(r=>cv.toBlob(r,type, type==='image/jpeg'?0.95:undefined));
+  const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
+  if(r.ok){
+    if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url);
+    im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.size=blob.size;
+    if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
+    toast(`${nw}×${nh} 자르기 완료 (원본은 ImgZipView_원본)`);
+  } else toast('저장 실패: '+(r.error||''));
+};
+
 // 캔버스로 회전/리사이즈 적용해 blob 생성
-async function renderToBlob(im, addDeg=0, resize=null, fmt=null, quality=0.9){
+async function renderToBlob(im, addDeg=0, resize=null, fmt=null, quality=0.9, flip=null){
   const img=new Image(); img.src=im.url; await img.decode();
   let w=img.naturalWidth,h=img.naturalHeight;
   const deg=((addDeg%360)+360)%360;
@@ -1006,6 +1107,7 @@ async function renderToBlob(im, addDeg=0, resize=null, fmt=null, quality=0.9){
   const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
   const ctx=cv.getContext('2d'); ctx.imageSmoothingQuality='high';
   ctx.translate(cw/2,ch/2); ctx.rotate(deg*Math.PI/180);
+  if(flip) ctx.scale(flip.h?-1:1, flip.v?-1:1);
   ctx.drawImage(img,-w/2,-h/2,w,h);
   let type='image/jpeg';
   const ext=(fmt|| im.name.split('.').pop()).toLowerCase();
@@ -1395,8 +1497,12 @@ function buildCtx(n){
   CTX.innerHTML =
     it('open','크게 보기')+
     `<div class="csep"></div>`+
-    it('comp','용량 줄이기')+
+    it('crop','자르기')+
     it('resize','크기 변경')+
+    it('rotR','오른쪽 회전')+
+    it('flipH','좌우 반전')+
+    `<div class="csep"></div>`+
+    it('comp','용량 줄이기')+
     it('conv','포맷 변환')+
     it('rename','이름 변경')+
     `<div class="csep"></div>`+
@@ -1407,6 +1513,9 @@ function buildCtx(n){
 }
 function ctxAction(a){
   if(a==='open')openSingle(idx);
+  else if(a==='crop')openCrop();
+  else if(a==='rotR')rotateSave(90);
+  else if(a==='flipH')flipSave('h');
   else if(a==='comp')$('#compBtn').click();
   else if(a==='resize')$('#resizeBtn').click();
   else if(a==='conv')$('#convBtn').click();
