@@ -13,7 +13,7 @@
 :root{
   --bg:#f4f5f7;--bg-soft:#fafbfc;--surface:#ffffff;--surface-2:#f3f4f6;
   --surface-3:#e7e9ee;--border:#e5e7eb;--border-soft:#eef0f3;
-  --text:#111827;--text-dim:#374151;--text-faint:#9ca3af;--muted:#9ca3af;
+  --text:#0f1622;--text-dim:#2b3444;--text-faint:#4b5563;--muted:#6b7280;
   --accent:#2563eb;--accent-deep:#1d4ed8;--accent-ink:#ffffff;
   --accent-glow:rgba(37,99,235,.14);--danger:#ef4444;
   --primary:#111827;--primary-ink:#ffffff;
@@ -270,7 +270,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .vbtn.active{background:var(--surface-3);color:var(--text)}
 .vbtn:hover:not(.active){color:var(--text-dim)}
 .grid.list-mode{display:block;padding:14px 16px}
-.dl-head,.dl-row{display:grid;grid-template-columns:48px 1fr 120px 92px 150px;align-items:center;gap:10px}
+.dl-head,.dl-row{display:grid;grid-template-columns:48px 1fr 104px 76px 80px 132px;align-items:center;gap:10px}
 .dl-head{padding:6px 12px;font-size:11.5px;color:var(--text-faint);font-weight:700;
   border-bottom:1px solid var(--border-soft);position:sticky;top:0;background:var(--bg)}
 .dl-row{padding:6px 12px;border-radius:9px;cursor:pointer;border:1px solid transparent}
@@ -281,7 +281,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .dl-thumb img.loaded{opacity:1}
 .dl-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--text-dim)}
 .dl-row.active .dl-name{color:var(--text)}
-.dl-dims,.dl-size,.dl-date{font-size:12px;color:var(--text-faint);white-space:nowrap}
+.dl-dims,.dl-dpi,.dl-size,.dl-date{font-size:12px;color:var(--text-faint);white-space:nowrap}
 
 /* === 단독뷰: ImgZip 용량 절감 바 === */
 .zipbar{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:6;display:flex;
@@ -336,6 +336,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .adj-preview{height:190px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
   display:grid;place-items:center;overflow:hidden;margin-bottom:16px}
 .adj-preview img{max-width:100%;max-height:100%;object-fit:contain}
+/* 워터마크 */
+.wm-preview{height:200px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
+  display:grid;place-items:center;overflow:hidden;margin-bottom:16px}
+.wm-preview canvas{max-width:100%;max-height:100%;object-fit:contain}
+.wm-row{display:flex;gap:18px;align-items:flex-start}
+.wm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:96px}
+.wm-grid button{aspect-ratio:1;border:1px solid var(--border);background:var(--surface-2);border-radius:6px;cursor:pointer;position:relative}
+.wm-grid button:hover{border-color:var(--text-faint)}
+.wm-grid button.on{border-color:var(--accent);background:var(--accent-glow)}
+.wm-grid button::after{content:'';position:absolute;width:6px;height:6px;border-radius:50%;background:var(--text-faint);top:50%;left:50%;transform:translate(-50%,-50%)}
+.wm-grid button.on::after{background:var(--accent)}
+.wm-col.on{border-color:var(--accent);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -385,6 +397,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <button class="tbtn" id="compBtn" disabled title="용량 줄이기 — 선택한 이미지 일괄 압축 (Ctrl+K)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg>
           용량줄이기</button>
+        <button class="tbtn" id="wmBtn" disabled title="워터마크 — 선택 이미지에 문구 삽입(일괄)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          워터마크</button>
       </div>
       <!-- 파일 관리 그룹 -->
       <div class="tgroup">
@@ -559,6 +574,33 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   </div>
 </div>
 
+<!-- 워터마크 다이얼로그 -->
+<div class="scrim" id="wmScrim">
+  <div class="dialog dialog-wide">
+    <h3>워터마크 <span id="wmCount" class="dim-cnt"></span></h3>
+    <div class="wm-preview"><canvas id="wmCanvas"></canvas></div>
+    <div class="field"><label>문구</label><input class="inp" id="wmText" type="text" value="© ImgZipView" spellcheck="false"></div>
+    <div class="wm-row">
+      <div class="field" style="margin-bottom:0"><label>위치</label>
+        <div class="wm-grid" id="wmGrid">
+          <button type="button" data-pos="tl"></button><button type="button" data-pos="tc"></button><button type="button" data-pos="tr"></button>
+          <button type="button" data-pos="ml"></button><button type="button" data-pos="mc"></button><button type="button" data-pos="mr"></button>
+          <button type="button" data-pos="bl"></button><button type="button" data-pos="bc"></button><button type="button" data-pos="br" class="on"></button>
+        </div>
+      </div>
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label>크기 <span id="wmSizeVal" style="color:var(--accent)">5</span>%</label><input type="range" id="wmSize" min="2" max="15" value="5">
+        <label style="margin-top:12px">불투명도 <span id="wmOpVal" style="color:var(--accent)">60</span>%</label><input type="range" id="wmOp" min="10" max="100" value="60">
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button type="button" class="chip wm-col on" data-col="#ffffff">흰색</button>
+          <button type="button" class="chip wm-col" data-col="#000000">검정</button>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-actions"><button class="ghost" data-close>취소</button><button class="primary" id="wmApply">워터마크 적용</button></div>
+  </div>
+</div>
+
 <!-- 밝기·대비·채도 보정 다이얼로그 -->
 <div class="scrim" id="adjustScrim">
   <div class="dialog">
@@ -650,6 +692,42 @@ function ensureDims(im){
   if(im.dw) return Promise.resolve({w:im.dw,h:im.dh});
   return getDims(im.url).then(d=>{im.dw=d.w;im.dh=d.h;return d;});
 }
+// 파일 메타에서 DPI(해상도) 파싱 — PNG(pHYs)·JPEG(JFIF)·BMP. 없으면 null.
+async function getDPI(im){
+  if(im.dpi!==undefined) return im.dpi;
+  im.dpi=null;
+  try{
+    const buf=await (await fetch(im.url)).arrayBuffer();
+    const v=new DataView(buf), n=v.byteLength;
+    if(n>24 && v.getUint32(0)===0x89504E47){                 // PNG
+      let off=8;
+      while(off+12<=n){
+        const len=v.getUint32(off);
+        const type=String.fromCharCode(v.getUint8(off+4),v.getUint8(off+5),v.getUint8(off+6),v.getUint8(off+7));
+        if(type==='pHYs'){ const ppuX=v.getUint32(off+8), unit=v.getUint8(off+16); if(unit===1&&ppuX>0) im.dpi=Math.round(ppuX*0.0254); break; }
+        if(type==='IDAT'||type==='IEND') break;
+        off+=12+len;
+      }
+    } else if(n>20 && v.getUint16(0)===0xFFD8){               // JPEG
+      let off=2;
+      while(off+4<=n){
+        if(v.getUint8(off)!==0xFF){ off++; continue; }
+        const marker=v.getUint8(off+1), seg=v.getUint16(off+2);
+        if(marker===0xE0 && off+18<=n &&
+           v.getUint8(off+4)===0x4A&&v.getUint8(off+5)===0x46&&v.getUint8(off+6)===0x49&&v.getUint8(off+7)===0x46){
+          const units=v.getUint8(off+11), xd=v.getUint16(off+12);
+          if(units===1&&xd>0) im.dpi=xd; else if(units===2&&xd>0) im.dpi=Math.round(xd*2.54);
+          break;
+        }
+        if(marker===0xD9||marker===0xDA) break;
+        off+=2+seg;
+      }
+    } else if(n>26 && v.getUint8(0)===0x42 && v.getUint8(1)===0x4D){  // BMP
+      const ppmX=v.getInt32(38,true); if(ppmX>0) im.dpi=Math.round(ppmX*0.0254);
+    }
+  }catch(e){}
+  return im.dpi;
+}
 
 // ---- 모드 전환 ----
 function setMode(m){
@@ -714,12 +792,13 @@ function buildTiles(g){
   });
 }
 function buildListRows(g){
-  g.innerHTML = `<div class="dl-head"><span></span><span>이름</span><span>크기</span><span>용량</span><span>생성일</span></div>`
+  g.innerHTML = `<div class="dl-head"><span></span><span>이름</span><span>크기</span><span>DPI</span><span>용량</span><span>생성일</span></div>`
    + images.map((im,i)=>`
     <div class="dl-row ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
       <span class="dl-thumb"><img data-i="${i}" draggable="false" alt=""></span>
       <span class="dl-name" title="${esc(im.name)}">${esc(im.name)}</span>
       <span class="dl-dims" id="dld${i}">${im.dw?im.dw+'×'+im.dh:'…'}</span>
+      <span class="dl-dpi" id="dldpi${i}">${im.dpi?im.dpi+' DPI':(im.dpi===null?'—':'…')}</span>
       <span class="dl-size">${fmtSize(im.size)}</span>
       <span class="dl-date">${fmtDate(im.created)}</span>
     </div>`).join('');
@@ -736,7 +815,10 @@ function observeThumbs(g){
       const i=+img.dataset.i; const im=images[i]; if(!im)return;
       img.src=await makeThumb(im);
       if(img.complete) img.classList.add('loaded'); else img.onload=()=>img.classList.add('loaded');
-      if(viewMode==='list'){ ensureDims(im).then(d=>{ const c=$('#dld'+i); if(c)c.textContent=d.w+'×'+d.h; }); }
+      if(viewMode==='list'){
+        ensureDims(im).then(d=>{ const c=$('#dld'+i); if(c)c.textContent=d.w+'×'+d.h; });
+        getDPI(im).then(dp=>{ const c=$('#dldpi'+i); if(c)c.textContent=dp?dp+' DPI':'—'; });
+      }
     });
   },{root:g,rootMargin:'300px 0px'});
   g.querySelectorAll('.tile-img img, .dl-thumb img').forEach(img=>thumbObserver.observe(img));
@@ -992,7 +1074,7 @@ function updateStatus(){
     else $('#statLeft').innerHTML=`<b>${images.length}장</b> · 더블클릭=크게보기 · Ctrl/Shift+클릭으로 여러 개 선택`;
   }
 }
-function setBtns(on){['rotL','rotR','flipH','flipV','cropBtn','adjustBtn','resizeBtn','convBtn','compBtn','renameBtn','delBtn'].forEach(id=>{const e=$('#'+id);if(e)e.disabled=!on;});}
+function setBtns(on){['rotL','rotR','flipH','flipV','cropBtn','adjustBtn','resizeBtn','convBtn','compBtn','wmBtn','renameBtn','delBtn'].forEach(id=>{const e=$('#'+id);if(e)e.disabled=!on;});}
 
 // 편집 후 화면 갱신(그리드 타일·미리보기·단독뷰 동시)
 function refreshViews(){
@@ -1109,7 +1191,7 @@ $('#cropApply').onclick=async()=>{
   const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
   if(r.ok){
     if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url);
-    im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.size=blob.size;
+    im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.dpi=undefined; im.size=blob.size;
     if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
     toast(`${nw}×${nh} 자르기 완료 (원본은 ImgZipView_원본)`);
   } else toast('저장 실패: '+(r.error||''));
@@ -1165,6 +1247,76 @@ function printImage(im){
   if(img.complete) setTimeout(go,250); else { img.onload=()=>setTimeout(go,200); img.onerror=()=>{ ifr.remove(); toast('인쇄 실패'); }; }
 }
 
+// ---- 워터마크 ----
+let wmImg=null, wmPos='br', wmColor='#ffffff';
+function wmOpts(){ return { text:$('#wmText').value||'', size:+$('#wmSize').value, opacity:+$('#wmOp').value, color:wmColor, pos:wmPos }; }
+// 캔버스에 워터마크 텍스트를 그림 (cw/ch = 캔버스 크기 기준)
+function drawWatermark(ctx, cw, ch, o){
+  if(!o.text) return;
+  const fontPx=Math.max(9, Math.round(cw*o.size/100));
+  ctx.save();
+  ctx.font=`600 ${fontPx}px "Pretendard Variable",Pretendard,-apple-system,sans-serif`;
+  ctx.textBaseline='alphabetic';
+  const tw=ctx.measureText(o.text).width, th=fontPx;
+  const margin=Math.round(fontPx*0.45)+Math.round(cw*0.012);
+  let x,y;
+  const col=o.pos[1], row=o.pos[0];
+  if(col==='l') x=margin; else if(col==='c') x=(cw-tw)/2; else x=cw-tw-margin;
+  if(row==='t') y=margin+th*0.82; else if(row==='m') y=(ch+th*0.7)/2; else y=ch-margin;
+  ctx.globalAlpha=o.opacity/100;
+  ctx.shadowColor=o.color==='#ffffff'?'rgba(0,0,0,.55)':'rgba(255,255,255,.55)';
+  ctx.shadowBlur=Math.max(1,Math.round(fontPx*0.14));
+  ctx.fillStyle=o.color;
+  ctx.fillText(o.text, x, y);
+  ctx.restore();
+}
+function renderWmPreview(){
+  if(!wmImg||!wmImg.naturalWidth) return;
+  const cvs=$('#wmCanvas'), maxW=560, scale=Math.min(1, maxW/wmImg.naturalWidth);
+  cvs.width=Math.max(1,Math.round(wmImg.naturalWidth*scale));
+  cvs.height=Math.max(1,Math.round(wmImg.naturalHeight*scale));
+  const ctx=cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  ctx.drawImage(wmImg,0,0,cvs.width,cvs.height);
+  drawWatermark(ctx, cvs.width, cvs.height, wmOpts());
+}
+function openWm(){
+  const sel=(mode==='grid')?selIndices():[idx];
+  if(!sel.length||!images[sel[0]]||!images[sel[0]].path){ toast('워터마크를 넣을 이미지를 선택하세요'); return; }
+  if(!API){ toast('데스크톱 빌드에서 가능합니다'); return; }
+  $('#wmCount').textContent=`(${sel.length}개)`;
+  wmImg=new Image(); wmImg.onload=renderWmPreview; wmImg.src=images[sel[0]].url;
+  $('#wmScrim').classList.add('show');
+}
+$('#wmBtn').onclick=openWm;
+['wmText','wmSize','wmOp'].forEach(id=>$('#'+id).oninput=()=>{ $('#wmSizeVal').textContent=$('#wmSize').value; $('#wmOpVal').textContent=$('#wmOp').value; renderWmPreview(); });
+document.querySelectorAll('#wmGrid button').forEach(b=>b.onclick=()=>{ wmPos=b.dataset.pos; document.querySelectorAll('#wmGrid button').forEach(x=>x.classList.toggle('on',x===b)); renderWmPreview(); });
+document.querySelectorAll('.wm-col').forEach(b=>b.onclick=()=>{ wmColor=b.dataset.col; document.querySelectorAll('.wm-col').forEach(x=>x.classList.toggle('on',x===b)); renderWmPreview(); });
+$('#wmApply').onclick=async()=>{
+  const sel=(mode==='grid')?selIndices():[idx];
+  const targets=sel.map(i=>images[i]).filter(im=>im&&im.path);
+  const o=wmOpts();
+  closeDialogs();
+  if(!API||!targets.length){ toast('적용할 이미지가 없어요'); return; }
+  if(!o.text){ toast('워터마크 문구를 입력하세요'); return; }
+  let ok=0,fail=0;
+  for(const i of sel){
+    const im=images[i]; if(!im||!im.path)continue;
+    const img=new Image(); img.src=im.url; await img.decode();
+    const cv=document.createElement('canvas'); cv.width=img.naturalWidth; cv.height=img.naturalHeight;
+    const ctx=cv.getContext('2d'); ctx.drawImage(img,0,0);
+    drawWatermark(ctx, cv.width, cv.height, o);
+    const ext=(im.name.split('.').pop()||'jpg').toLowerCase();
+    const type=ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
+    const blob=await new Promise(r=>cv.toBlob(r,type, type==='image/jpeg'?0.95:undefined));
+    const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
+    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.size=blob.size; im.dpi=undefined; ok++; }
+    else fail++;
+  }
+  if(mode==='single')showSingle(); else { renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} }
+  toast(ok?`워터마크 ${ok>1?ok+'개 ':''}적용 완료 (원본은 ImgZipView_원본)${fail?` · ${fail}개 실패`:''}`:'적용 실패');
+};
+
 // 캔버스로 회전/리사이즈 적용해 blob 생성
 async function renderToBlob(im, addDeg=0, resize=null, fmt=null, quality=0.9, flip=null){
   const img=new Image(); img.src=im.url; await img.decode();
@@ -1206,7 +1358,7 @@ $('#rzApply').onclick=async()=>{
     else{const t=+$('#rzLong').value||Math.max(w,h);if(w>=h){h=Math.round(h*t/w);w=t;}else{w=Math.round(w*t/h);h=t;}}
     const blob=await renderToBlob(im,0,{w,h});
     const r=await API.saveOverwrite({srcPath:im.path,data:await blob.arrayBuffer(),backup:true});
-    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.size=blob.size; ok++; lastDim=`${w}×${h}`; }
+    if(r.ok){ if(im.thumb)URL.revokeObjectURL(im.thumb); im.thumb=null; URL.revokeObjectURL(im.url); im.url=URL.createObjectURL(blob); im.dw=im.dh=undefined; im.dpi=undefined; im.size=blob.size; ok++; lastDim=`${w}×${h}`; }
     else fail++;
   }
   renderGrid(); if(mode==='grid'){syncSelClasses();renderPreview();} else if(mode==='single')showSingle();
@@ -1288,7 +1440,7 @@ async function doCompress(){
       URL.revokeObjectURL(im.url);
       im.url=URL.createObjectURL(it._blob);
       im.name=it.name; im.path=res.newPath; im.size=it._blob.size;
-      im.thumb=null; im.est=undefined; im.dw=undefined; im.dh=undefined;
+      im.thumb=null; im.est=undefined; im.dw=undefined; im.dh=undefined; im.dpi=undefined;
     }
     renderGrid();
     if(mode==='grid'){ syncSelClasses(); renderPreview(); } else if(mode==='single'){ showSingle(); }
@@ -1572,6 +1724,7 @@ function buildCtx(n){
     it('rotR','오른쪽 회전')+
     it('flipH','좌우 반전')+
     it('adjust','밝기·대비·채도')+
+    it('wm','워터마크')+
     `<div class="csep"></div>`+
     it('comp','용량 줄이기')+
     it('conv','포맷 변환')+
@@ -1589,6 +1742,7 @@ function ctxAction(a){
   else if(a==='rotR')rotateSave(90);
   else if(a==='flipH')flipSave('h');
   else if(a==='adjust')openAdjust();
+  else if(a==='wm')openWm();
   else if(a==='print')printImage();
   else if(a==='comp')$('#compBtn').click();
   else if(a==='resize')$('#resizeBtn').click();
@@ -1597,6 +1751,14 @@ function ctxAction(a){
   else if(a==='del')$('#delBtn').click();
   else if(a==='explorer'){ const im=current(); if(im&&im.path&&API&&API.showInFolder)API.showInFolder(im.path); }
 }
+function openCtxAt(x,y,n){
+  buildCtx(n);
+  CTX.style.display='block';
+  const mw=CTX.offsetWidth||190, mh=CTX.offsetHeight||300;
+  if(x+mw>innerWidth)x=innerWidth-mw-6;
+  if(y+mh>innerHeight)y=innerHeight-mh-6;
+  CTX.style.left=x+'px'; CTX.style.top=y+'px';
+}
 $('#grid').addEventListener('contextmenu',e=>{
   if(mode!=='grid')return;
   const t=e.target.closest('.tile,.dl-row');
@@ -1604,13 +1766,13 @@ $('#grid').addEventListener('contextmenu',e=>{
   e.preventDefault();
   const i=+t.dataset.i;
   if(!selected.has(i)) select(i);          // 선택 밖이면 그 항목만 단일 선택
-  buildCtx(selIndices().length);
-  CTX.style.display='block';
-  const mw=CTX.offsetWidth||190, mh=CTX.offsetHeight||280;
-  let x=e.clientX,y=e.clientY;
-  if(x+mw>innerWidth)x=innerWidth-mw-6;
-  if(y+mh>innerHeight)y=innerHeight-mh-6;
-  CTX.style.left=x+'px'; CTX.style.top=y+'px';
+  openCtxAt(e.clientX,e.clientY, selIndices().length);
+});
+// 확대(단독)뷰에서도 동일한 우클릭 메뉴 (현재 보고 있는 1장 대상)
+$('#singleScreen').addEventListener('contextmenu',e=>{
+  if(mode!=='single'||!current())return;
+  e.preventDefault();
+  openCtxAt(e.clientX,e.clientY, 1);
 });
 window.addEventListener('click',hideCtx);
 window.addEventListener('scroll',hideCtx,true);
