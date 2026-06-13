@@ -44,7 +44,7 @@ async function sendFilesToRenderer(win, paths, replace = false) {
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 760, minHeight: 560,
-    backgroundColor: '#0c0d10',
+    backgroundColor: '#f4f5f7',
     title: 'ImgZipView',
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'icon.png'),
