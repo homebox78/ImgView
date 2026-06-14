@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ImgZipView — 보고, 편집하고, 압축까지</title>
+<script>/* 첫 페인트 전에 테마 적용(기본 다크) — 플래시 방지 */try{document.documentElement.dataset.theme=((localStorage.getItem('izv_theme')||'dark')==='dark')?'dark':'';}catch(e){document.documentElement.dataset.theme='dark';}</script>
 <style>
 @font-face{
   font-family:'Pretendard Variable';font-weight:45 920;font-style:normal;
@@ -2003,7 +2004,7 @@ function applyTheme(t){
         dark?{color:'#080a0d',symbolColor:'#c4ccd6'}:{color:'#e6e8ee',symbolColor:'#2b3444'}); }catch(e){}
 }
 $('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
-(function(){ let t='light'; try{ t=localStorage.getItem('izv_theme')||'light'; }catch(e){} applyTheme(t); })();
+(function(){ let t='dark'; try{ t=localStorage.getItem('izv_theme')||'dark'; }catch(e){} applyTheme(t); })();
 // 툴바를 아이콘 전용으로: 보이는 라벨 텍스트는 디자인 툴팁(data-tip)으로 옮기고 네이티브 title 제거
 (function(){
   document.querySelectorAll('.tools .tbtn').forEach(b=>{
