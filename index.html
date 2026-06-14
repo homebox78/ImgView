@@ -1035,7 +1035,8 @@ function renderGrid(){
   const g=$('#grid');
   if(thumbObserver){thumbObserver.disconnect();thumbObserver=null;}
   g.classList.toggle('list-mode', viewMode==='list');
-  if(!images.length && !folderCards.length){
+  const hasUp = curFolder ? !!parentPath(curFolder) : false;
+  if(!images.length && !folderCards.length && !hasUp){
     g.classList.add('empty-mode'); g.innerHTML=DROP_HINT;
     $('#dropHint').onclick=()=>$('#openBtn').click();
     return;
@@ -1047,7 +1048,8 @@ function renderGrid(){
 }
 function buildTiles(g){
   let html='';
-  if(folderCards.length){ html+=folderStripHTML(); if(images.length) html+=`<div class="grid-sect">이미지 ${images.length}</div>`; }
+  const strip=folderStripHTML();
+  if(strip){ html+=strip; if(images.length) html+=`<div class="grid-sect">이미지 ${images.length}</div>`; }
   html += images.map((im,i)=>`
     <div class="tile ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
       <div class="tile-img"><img data-i="${i}" draggable="false" alt=""></div>
@@ -1061,7 +1063,7 @@ function buildTiles(g){
 }
 function buildListRows(g){
   const head = images.length ? `<div class="dl-head"><span></span><span>이름</span><span>크기</span><span>DPI</span><span>용량</span><span>생성일</span></div>` : '';
-  g.innerHTML = (folderCards.length?folderStripHTML():'')
+  g.innerHTML = folderStripHTML()
    + head
    + images.map((im,i)=>`
     <div class="dl-row ${selected.has(i)?'active':''} ${i===idx?'focus':''}" data-i="${i}">
@@ -1149,10 +1151,12 @@ function parentPath(p){
 }
 function folderStripHTML(){
   const par = curFolder ? parentPath(curFolder) : null;
+  if(!par && !folderCards.length) return '';           // 부모도 하위폴더도 없으면 표시 안 함
   let cards='';
   if(par) cards+=`<div class="folder-card up" data-up="1" title="${esc(par)}">${UP_SVG}<div class="fc-name">상위 폴더</div></div>`;
   cards+=folderCards.map((f,i)=>`<div class="folder-card" data-fi="${i}" title="${esc(f.path)}">${FOLDER_BIG_SVG}<div class="fc-name">${esc(f.name)}</div></div>`).join('');
-  return `<div class="folder-strip"><div class="grid-sect">폴더 ${folderCards.length}</div><div class="folder-strip-grid">${cards}</div></div>`;
+  const label = folderCards.length ? `폴더 ${folderCards.length}` : '상위 폴더';
+  return `<div class="folder-strip"><div class="grid-sect">${label}</div><div class="folder-strip-grid">${cards}</div></div>`;
 }
 function wireFolderCards(g){
   const par = curFolder ? parentPath(curFolder) : null;
