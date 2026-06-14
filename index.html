@@ -1013,6 +1013,7 @@ function renderGrid(){
   g.classList.remove('empty-mode');
   if(viewMode==='list') buildListRows(g); else buildTiles(g);
   observeThumbs(g);
+  _prevSel=new Set(selected); _prevFocus=idx;   // 새 DOM은 인라인으로 현재 선택 반영됨 → diff 기준 갱신
 }
 function buildTiles(g){
   let html='';
@@ -1240,17 +1241,21 @@ function select(i, ev){
     selected.clear(); selected.add(i); idx=i; anchorIdx=i;
   }
   syncSelClasses();
-  const active=$(`.tile[data-i="${i}"],.dl-row[data-i="${i}"]`); if(active) active.scrollIntoView({block:'nearest'});
-  renderPreview();
+  const active=tileAt(i); if(active) active.scrollIntoView({block:'nearest'});
+  renderPreviewSoon();   // 빠른 키보드 네비 시 미리보기/EXIF 과다 로드 방지(디바운스)
   setBtns(true);
   updateStatus();
 }
+let _pvT=null;
+function renderPreviewSoon(){ clearTimeout(_pvT); _pvT=setTimeout(()=>{ _pvT=null; renderPreview(); }, 60); }
+// 변경분만 갱신(대용량 폴더 성능) — 직전 상태와 diff
+let _prevSel=new Set(), _prevFocus=-1;
+function tileAt(i){ return $('#grid').querySelector(`.tile[data-i="${i}"],.dl-row[data-i="${i}"]`); }
 function syncSelClasses(){
-  $('#grid').querySelectorAll('.tile,.dl-row').forEach(t=>{
-    const k=+t.dataset.i;
-    t.classList.toggle('active', selected.has(k));
-    t.classList.toggle('focus', k===idx);
-  });
+  _prevSel.forEach(i=>{ if(!selected.has(i)){ const t=tileAt(i); if(t)t.classList.remove('active'); } });
+  selected.forEach(i=>{ if(!_prevSel.has(i)){ const t=tileAt(i); if(t)t.classList.add('active'); } });
+  if(_prevFocus!==idx){ const o=tileAt(_prevFocus); if(o)o.classList.remove('focus'); const n=tileAt(idx); if(n)n.classList.add('focus'); }
+  _prevSel=new Set(selected); _prevFocus=idx;
 }
 // 전체 선택
 function selectAll(){
@@ -1317,9 +1322,9 @@ let _preload=[];
 function preloadNeighbors(){
   _preload=[];
   if(images.length<2) return;
-  for(const o of [1,-1,2,-2]){
+  for(const o of [1,-1]){   // 다음/이전 1장만 미리 디코드(과부하 방지)
     const im=images[(idx+o+images.length)%images.length]; if(!im) continue;
-    if(TIFF_RE.test(im.name)||HEIC_RE.test(im.name)||PSD_RE.test(im.name)){ ensureRenderable(im); continue; }
+    if(TIFF_RE.test(im.name)||HEIC_RE.test(im.name)||PSD_RE.test(im.name)) continue; // 무거운 디코드는 프리로드 생략
     const pre=new Image(); pre.decoding='async'; pre.src=im.url; _preload.push(pre);
   }
 }
