@@ -21,7 +21,7 @@
   --radius:16px;--radius-sm:11px;
   --shadow:0 22px 55px -18px rgba(17,24,39,.20);--shadow-soft:0 8px 24px -12px rgba(17,24,39,.14);
   --ease:cubic-bezier(.22,.61,.36,1);
-  --viewer-bg:var(--surface-2);
+  --viewer-bg:var(--surface-2);--glass:rgba(255,255,255,.85);
 }
 /* === 다크 테마 === */
 :root[data-theme="dark"]{
@@ -33,7 +33,7 @@
   --primary:#4d8dff;--primary-ink:#ffffff;--primary-hi:#3b7bf0;
   --btn:#1a1d24;--btn-bd:#2f343e;--btn-hi:#23272f;--btn-bd-hi:#3a404c;
   --shadow:0 22px 55px -18px rgba(0,0,0,.6);--shadow-soft:0 8px 24px -12px rgba(0,0,0,.5);
-  --viewer-bg:var(--surface-2);
+  --viewer-bg:var(--surface-2);--glass:rgba(26,29,36,.85);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -178,14 +178,14 @@ body.col-resizing{cursor:col-resize;user-select:none}
   transition:transform .12s var(--ease)}
 .single-back{position:absolute;top:16px;left:16px;z-index:6;display:flex;align-items:center;gap:6px;
   height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--border);
-  background:rgba(255,255,255,.82);backdrop-filter:blur(8px);color:var(--text);cursor:pointer;
+  background:var(--glass);backdrop-filter:blur(8px);color:var(--text);cursor:pointer;
   box-shadow:var(--shadow-soft);font-family:inherit;font-size:12.5px;font-weight:600;opacity:0;transition:.2s var(--ease)}
 .viewer:hover .single-back{opacity:1}
 .single-back:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 
 /* 좌우 이동 버튼 */
 .nav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;
-  border-radius:50%;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);
+  border-radius:50%;background:var(--glass);backdrop-filter:blur(8px);
   border:1px solid var(--border);color:var(--text);cursor:pointer;display:grid;place-items:center;
   box-shadow:var(--shadow-soft);opacity:0;transition:.2s var(--ease);z-index:5}
 .viewer:hover .nav{opacity:1}
@@ -323,7 +323,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
 /* === 단독뷰: ImgZip 용량 절감 바 === */
 .zipbar{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:6;display:flex;
-  align-items:center;gap:12px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+  align-items:center;gap:12px;background:var(--glass);backdrop-filter:blur(8px);
   border:1px solid var(--border);border-radius:12px;padding:8px 10px 8px 16px;box-shadow:var(--shadow-soft);
   font-size:12.5px;color:var(--text-dim);max-width:90%}
 .zipbar b{color:var(--accent)}
