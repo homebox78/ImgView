@@ -165,6 +165,11 @@ body.col-resizing{cursor:col-resize;user-select:none}
 .pv-exif .ex-v{flex:1;color:var(--text-dim);word-break:break-word}
 .pv-exif .ex-map{color:var(--accent);cursor:pointer;text-decoration:none;margin-left:6px;font-weight:600}
 .pv-exif .ex-empty{color:var(--text-faint);font-size:11.5px}
+/* 단독뷰 EXIF 오버레이 */
+.single-exif{position:absolute;top:16px;right:16px;z-index:7;width:270px;max-height:72%;overflow:auto;
+  background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;box-shadow:var(--shadow-soft);border-top:1px solid var(--border);display:none}
+.single-exif.show{display:block}
 .pv-open{width:100%;justify-content:center;height:40px;font-size:13px}
 
 /* === 단독 크게보기 화면 === */
@@ -201,6 +206,7 @@ body.col-resizing{cursor:col-resize;user-select:none}
 .zoomctl button{height:24px;min-width:24px;padding:0 5px;border-radius:7px;border:1px solid var(--border);
   background:var(--surface);color:var(--text-dim);cursor:pointer;font-size:13px;font-family:inherit;white-space:nowrap}
 .zoomctl button:hover{color:var(--text);border-color:var(--surface-3)}
+.zoomctl button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
 .zoomctl #zoomFit{padding:0 10px;font-size:12px}
 
 /* 다이얼로그 */
@@ -530,6 +536,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
       <button class="nav next" id="navNext" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      <div class="pv-exif single-exif" id="singleExif"></div>
     </div>
   </div>
 
@@ -547,6 +554,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <button id="zoomOut">−</button><span id="zoomLabel">100%</span><button id="zoomIn">＋</button>
         <button id="zoomFit" title="창 맞춤">맞춤</button>
         <button id="bgBtn" title="뷰어 배경색 바꾸기">배경</button>
+        <button id="infoBtn" title="사진 정보(EXIF)">ⓘ 정보</button>
         <button id="slideBtn" title="슬라이드쇼 (S)">▶ 슬라이드</button>
       </div>
     </div>
@@ -768,6 +776,7 @@ function enhanceSelect(sel){
     menu.appendChild(d); });
   wrap.append(btn,menu);
   function sync(){ const cur=opts.find(o=>o.v===sel.value)||opts[0]; lbl.textContent=cur?cur.t:''; menu.querySelectorAll('.csel-opt').forEach(d=>d.classList.toggle('sel',d.dataset.v===sel.value)); }
+  sel._csync=sync;   // 프로그램적으로 value 변경 후 라벨 동기화용
   btn.onclick=e=>{ e.stopPropagation(); const wasOpen=wrap.classList.contains('open'); document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open')); if(!wasOpen)wrap.classList.add('open'); };
   sync();
 }
@@ -787,7 +796,20 @@ function fileURL(p){
 const TIFF_RE=/\.tiff?$/i;
 const HEIC_RE=/\.(heic|heif)$/i;
 const PSD_RE=/\.psd$/i;
-// 브라우저가 못 그리는 포맷(TIFF·HEIC)은 디코드해 PNG blob으로 교체(최초 1회)
+// 디코드 실패 시 표시할 플레이스홀더 이미지(data URL)
+function placeholderURL(name){
+  const c=el('canvas'); c.width=400; c.height=300; const x=c.getContext('2d');
+  x.fillStyle='#3a3f4a'; x.fillRect(0,0,400,300);
+  x.strokeStyle='#6b7280'; x.lineWidth=3;
+  x.strokeRect(150,95,100,80); x.beginPath(); x.moveTo(150,160); x.lineTo(180,135); x.lineTo(205,155); x.lineTo(225,140); x.lineTo(250,165); x.stroke();
+  x.beginPath(); x.arc(178,118,8,0,6.3); x.stroke();
+  x.fillStyle='#c2c8d2'; x.font='600 17px -apple-system,sans-serif'; x.textAlign='center';
+  x.fillText('이미지를 표시할 수 없어요', 200, 215);
+  x.fillStyle='#8b94a3'; x.font='13px -apple-system,sans-serif';
+  x.fillText((name.split('.').pop()||'').toUpperCase()+' 디코드 실패', 200, 238);
+  return c.toDataURL('image/png');
+}
+// 브라우저가 못 그리는 포맷(TIFF·HEIC·PSD)은 디코드해 PNG blob으로 교체(최초 1회)
 async function ensureRenderable(im){
   if(im._renderable) return im.url;
   if(TIFF_RE.test(im.name) && typeof UTIF!=='undefined'){
@@ -800,7 +822,7 @@ async function ensureRenderable(im){
       const x=c.getContext('2d'); const d=x.createImageData(w,h); d.data.set(rgba); x.putImageData(d,0,0);
       const blob=await new Promise(r=>c.toBlob(r,'image/png'));
       if(blob){ im.url=URL.createObjectURL(blob); im.dw=w; im.dh=h; }
-    }catch(e){}
+    }catch(e){ im._decodeFailed=true; im.url=placeholderURL(im.name); }
     return im.url;
   }
   if(HEIC_RE.test(im.name) && typeof heic2any!=='undefined'){
@@ -811,8 +833,8 @@ async function ensureRenderable(im){
       const blob=new Blob([buf], {type:'image/heic'});
       const out=await heic2any({ blob, toType:'image/jpeg', quality:0.92 });
       const png=Array.isArray(out)?out[0]:out;
-      if(png) im.url=URL.createObjectURL(png);
-    }catch(e){ console.warn('HEIC decode 실패', e); }
+      if(png) im.url=URL.createObjectURL(png); else throw new Error('no output');
+    }catch(e){ im._decodeFailed=true; im.url=placeholderURL(im.name); }
     return im.url;
   }
   if(PSD_RE.test(im.name) && typeof agPsd!=='undefined'){
@@ -821,8 +843,9 @@ async function ensureRenderable(im){
       const buf=await (await fetch(im.url)).arrayBuffer();
       const psd=agPsd.readPsd(buf, { skipLayerImageData:true, skipThumbnail:true });
       const cv=psd.canvas; // 합성 결과 캔버스
-      if(cv){ const blob=await new Promise(r=>cv.toBlob(r,'image/png')); if(blob){ im.url=URL.createObjectURL(blob); im.dw=psd.width; im.dh=psd.height; } }
-    }catch(e){ console.warn('PSD decode 실패', e); }
+      if(cv){ const blob=await new Promise(r=>cv.toBlob(r,'image/png')); if(blob){ im.url=URL.createObjectURL(blob); im.dw=psd.width; im.dh=psd.height; } else throw new Error('no blob'); }
+      else throw new Error('no composite');
+    }catch(e){ im._decodeFailed=true; im.url=placeholderURL(im.name); }
     return im.url;
   }
   return im.url;
@@ -1070,8 +1093,14 @@ async function applySort(quiet){
   if(curPath){ const ni=images.findIndex(im=>im.path===curPath); idx=ni>=0?ni:Math.min(idx,images.length-1); }
   if(mode==='single') showSingle(); else { renderGrid(); syncSelClasses(); renderPreview(); }
 }
-$('#sortSel').onchange=e=>{ sortKey=e.target.value; applySort(false); };
-$('#sortDir').onclick=()=>{ sortAsc=!sortAsc; $('#sortDir').textContent=sortAsc?'↑ 오름':'↓ 내림'; applySort(false); };
+function saveSort(){ try{ localStorage.setItem('izv_sort', sortKey+'|'+(sortAsc?'1':'0')); }catch(e){} }
+$('#sortSel').onchange=e=>{ sortKey=e.target.value; saveSort(); applySort(false); };
+$('#sortDir').onclick=()=>{ sortAsc=!sortAsc; $('#sortDir').textContent=sortAsc?'↑ 오름':'↓ 내림'; saveSort(); applySort(false); };
+// 저장된 정렬 복원 (enhanceSelect 이후 init에서 호출)
+function restoreSort(){ try{ const s=localStorage.getItem('izv_sort'); if(!s)return; const p=s.split('|'); if(!p[0])return;
+  sortKey=p[0]; sortAsc=p[1]!=='0';
+  const sel=$('#sortSel'); if(sel){ sel.value=sortKey; if(sel._csync)sel._csync(); }
+  $('#sortDir').textContent=sortAsc?'↑ 오름':'↓ 내림'; }catch(e){} }
 
 // ---- 하위 폴더 카드(직접 이미지가 없고 하위 폴더에만 있을 때) ----
 const FOLDER_BIG_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
@@ -1272,6 +1301,16 @@ function showSingle(){
   setBtns(true);
   document.title=`${im.name} — ImgZipView`;
   updateZipBar(im);
+  refreshSingleExif();
+}
+let exifOpen=false;
+function refreshSingleExif(){
+  const box=$('#singleExif'); if(!box) return;
+  box.classList.toggle('show', exifOpen);
+  if(!exifOpen) return;
+  const im=current(); if(!im){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="ex-empty">불러오는 중…</div>';
+  getExif(im).then(x=>{ if(current()===im && exifOpen){ box.innerHTML=exifHTML(x); wireExifMap(box); } });
 }
 // 다음/이전 1~2장을 미리 디코드 → 단독뷰 넘김을 끊김 없이
 let _preload=[];
@@ -1943,6 +1982,7 @@ function applyViewerBg(){
   v.style.setProperty('--viewer-bg', b.check?'transparent':b.color);
 }
 $('#bgBtn').onclick=()=>{ viewerBgIdx=(viewerBgIdx+1)%VIEWER_BGS.length; applyViewerBg(); toast('뷰어 배경: '+VIEWER_BGS[viewerBgIdx].name); try{localStorage.setItem('izv_viewerbg',viewerBgIdx);}catch(e){} };
+$('#infoBtn').onclick=()=>{ exifOpen=!exifOpen; $('#infoBtn').classList.toggle('on',exifOpen); refreshSingleExif(); };
 (function(){ try{ const i=+localStorage.getItem('izv_viewerbg'); if(i>=0&&i<VIEWER_BGS.length)viewerBgIdx=i; }catch(e){} applyViewerBg(); })();
 $('#folderBtn').onclick=async()=>{
   if(!API){ toast('폴더 열기는 데스크톱 빌드에서 가능합니다'); return; }
@@ -2214,6 +2254,8 @@ if(!API) $('#tree').style.display='none';   // 웹에서는 트리 숨김
 else $('#pathInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();openPathInput();} });
 enhanceSelect($('#rzMode')); enhanceSelect($('#cvFmt'));   // 커스텀 드롭다운
 enhanceSelect($('#cmFmt')); enhanceSelect($('#cmSave')); enhanceSelect($('#sortSel'));
+enhanceSelect($('#webRange')); enhanceSelect($('#webFmt'));
+restoreSort();
 
 // 숫자 입력: 네이티브 스피너 → 테마에 맞는 커스텀 상하 버튼
 const NUM_UP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
