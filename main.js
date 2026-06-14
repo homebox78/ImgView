@@ -45,10 +45,13 @@ async function sendFilesToRenderer(win, paths, replace = false) {
 function createWindow() {
   const win = new BrowserWindow({
     width: 1518, height: 830, minWidth: 760, minHeight: 560,
-    backgroundColor: '#1a1d24',
+    backgroundColor: '#14161b',
     show: false,                       // 첫 페인트(테마 적용)까지 숨겨 라이트/다크 깜빡임 방지
     title: 'ImgZipView',
     autoHideMenuBar: true,
+    // 상단 타이틀바를 앱 툴바와 한 몸으로 — 시스템 창버튼만 오버레이로 남김
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#080a0d', symbolColor: '#c4ccd6', height: 50 },
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -349,6 +352,13 @@ ipcMain.handle('toggle-fullscreen', (event) => {
   if (!win) return false;
   win.setFullScreen(!win.isFullScreen());
   return win.isFullScreen();
+});
+// 테마 전환 시 시스템 창버튼 영역 색을 툴바와 맞춤
+ipcMain.handle('set-titlebar-overlay', (event, opts) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || !win.setTitleBarOverlay) return false;
+  try { win.setTitleBarOverlay({ color: opts.color, symbolColor: opts.symbolColor, height: 50 }); return true; }
+  catch (e) { return false; }
 });
 ipcMain.handle('toggle-always-on-top', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);

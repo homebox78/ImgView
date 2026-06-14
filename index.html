@@ -12,6 +12,8 @@
 /* === ImgZipView — 라이트 모던 SaaS 톤 (흰/연회색 면 · 검정 기본 액션 · 파란 액센트) === */
 :root{
   --bg:#f4f5f7;--bg-soft:#fafbfc;--surface:#ffffff;--surface-2:#f3f4f6;
+  --topbar:#e6e8ee;            /* 헤더툴바: 본문보다 진하게 */
+  --tip-bg:#1e2530;--tip-ink:#f3f5f8;--tip-bd:rgba(255,255,255,.07);
   --surface-3:#e7e9ee;--border:#e5e7eb;--border-soft:#eef0f3;
   --text:#0f1622;--text-dim:#2b3444;--text-faint:#4b5563;--muted:#6b7280;
   --accent:#2563eb;--accent-deep:#1d4ed8;--accent-ink:#ffffff;
@@ -26,6 +28,8 @@
 /* === 다크 테마 === */
 :root[data-theme="dark"]{
   --bg:#0f1115;--bg-soft:#14161b;--surface:#1a1d24;--surface-2:#23272f;
+  --topbar:#080a0d;            /* 헤더툴바: 본문보다 진하게 */
+  --tip-bg:#2a313c;--tip-ink:#eef1f5;--tip-bd:#3a414e;
   --surface-3:#2d323c;--border:#2f343e;--border-soft:#23272f;
   --text:#eef1f5;--text-dim:#c4ccd6;--text-faint:#8b94a3;--muted:#8b94a3;
   --accent:#4d8dff;--accent-deep:#3b7bf0;--accent-ink:#0a1018;
@@ -47,8 +51,10 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .app{height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* 상단바 */
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:7px 14px;background:var(--bg-soft);border-bottom:1px solid var(--border);flex:none}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:50px;
+  padding:7px 146px 7px 14px;background:var(--topbar);flex:none;position:relative;z-index:30;
+  -webkit-app-region:drag}            /* 우측 146px: 시스템 창버튼(최소/최대/닫기) 영역 확보 */
+.topbar button,.topbar input,.topbar select,.topbar a{-webkit-app-region:no-drag}
 .brand{display:flex;align-items:center;gap:11px;flex:none}
 .logo{width:36px;height:36px;border-radius:11px;
   background:linear-gradient(145deg,var(--surface-3),var(--surface));
@@ -57,25 +63,34 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .brand-name{font-size:16.5px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
 .brand-name b{color:var(--accent)}
 .brand-sub{font-size:10.5px;color:var(--text-faint);margin-top:2px}
-/* 툴바: 기능 그룹으로 정돈 */
-/* 일체형 평면 툴바 — 개별 버튼 배경/보더 없이 한 줄, 그룹은 얇은 구분선 */
+/* 일체형 평면 툴바 — 아이콘만, 라벨은 호버 툴팁으로 표시 */
 .tools{display:flex;align-items:center;gap:1px;flex-wrap:nowrap;justify-content:flex-end}
 .tgroup{display:flex;align-items:center;gap:1px}
-.tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 8px;position:relative;
+.tbtn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;position:relative;
   border:none;background:transparent;color:var(--text-dim);
-  border-radius:7px;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:600;
-  transition:.12s var(--ease);white-space:nowrap}
+  border-radius:8px;cursor:pointer;font-family:inherit;transition:.12s var(--ease)}
 .tbtn:hover:not(:disabled){color:var(--text);background:var(--btn-hi)}
-.tbtn.icon{width:30px;padding:0;justify-content:center}
-.tbtn.accent{background:var(--accent);color:var(--accent-ink);font-weight:700;height:30px;padding:0 13px;border-radius:8px}
+.tbtn.accent{background:var(--accent);color:var(--accent-ink)}
 .tbtn.accent:hover{background:var(--accent-deep);color:var(--accent-ink)}
-/* 활성(핀/정보 등) — 파란 언더라인 */
-.tbtn.on{color:var(--accent);background:transparent}
+/* 활성(핀/정보 등) — 파란 언더라인 (::after는 툴팁이 사용하므로 box-shadow로) */
+.tbtn.on{color:var(--accent);background:transparent;box-shadow:inset 0 -2px 0 var(--accent)}
 .tbtn.on:hover{background:var(--btn-hi)}
-.tbtn.on::after{content:'';position:absolute;left:8px;right:8px;bottom:1px;height:2px;border-radius:2px;background:var(--accent)}
-.tbtn svg{width:14px;height:14px;opacity:.9}
+.tbtn svg{width:16px;height:16px;opacity:.92}
 .tbtn:disabled{opacity:.3;cursor:not-allowed}
 .sep{width:1px;height:18px;background:var(--border);margin:0 5px}
+
+/* 디자인된 툴팁 — 아이콘 라벨을 호버 시 아래에 표시 */
+.tbtn[data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 9px);left:50%;
+  transform:translateX(-50%) translateY(-4px);
+  background:var(--tip-bg);color:var(--tip-ink);border:1px solid var(--tip-bd);
+  font-size:11px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;
+  padding:5px 9px;border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.28);
+  opacity:0;pointer-events:none;transition:opacity .14s var(--ease),transform .14s var(--ease);z-index:90}
+.tbtn[data-tip]::before{content:'';position:absolute;top:calc(100% + 4px);left:50%;
+  transform:translateX(-50%) translateY(-4px);
+  border:5px solid transparent;border-bottom-color:var(--tip-bg);
+  opacity:0;pointer-events:none;transition:opacity .14s var(--ease),transform .14s var(--ease);z-index:90}
+.tbtn[data-tip]:hover::after,.tbtn[data-tip]:hover::before{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* 본문 */
 .body{flex:1;position:relative;display:flex;min-height:0}
@@ -97,9 +112,16 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 /* === 그리드 화면: [폴더 트리] [바둑판] [미리보기] === */
 .gridscreen{flex:1;display:flex;min-height:0}
 /* 사이드 패널 너비 조절 핸들 */
-.resizer{flex:none;width:7px;cursor:col-resize;position:relative;z-index:6}
-.resizer::after{content:'';position:absolute;top:0;bottom:0;left:2px;right:2px;border-radius:2px;background:transparent;transition:background .12s}
-.resizer:hover::after,.resizer.drag::after{background:var(--accent)}
+.resizer{flex:none;width:9px;cursor:col-resize;position:relative;z-index:6}
+/* 호버/드래그 시 강조 라인 (뒤) */
+.resizer::before{content:'';position:absolute;top:0;bottom:0;left:3px;right:3px;border-radius:2px;background:transparent;transition:background .12s}
+.resizer:hover::before,.resizer.drag::before{background:var(--accent)}
+/* 항상 보이는 그립 점(⋮) — 조절 가능함을 명시 (앞) */
+.resizer::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:3px;height:30px;border-radius:3px;transition:.12s;
+  background:radial-gradient(circle,var(--muted) 1.1px,transparent 1.5px) 0 0/3px 6px;opacity:.55}
+.resizer:hover::after,.resizer.drag::after{
+  background:radial-gradient(circle,#fff 1.2px,transparent 1.6px) 0 0/3px 6px;opacity:.95}
 body.col-resizing{cursor:col-resize;user-select:none}
 
 /* 좌측 폴더 트리(탐색기) */
@@ -426,10 +448,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <header class="topbar">
     <div class="brand">
       <div class="logo">
+        <!-- 이미지 프레임 + 안쪽으로 모으는 화살표 = 용량 줄이기(압축) -->
         <svg viewBox="0 0 24 24" fill="none">
           <rect x="3" y="3" width="18" height="18" rx="5.5" stroke="url(#g)" stroke-width="1.6"/>
-          <circle cx="8.4" cy="13" r="1.25" fill="url(#g)"/>
-          <path d="M4.8 18.2L9 13.6l2.6 2.4 3.2-3.6 4.4 5" stroke="url(#g)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 6.4V17.6" stroke="url(#g)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1.3 2.1" opacity=".8"/>
+          <path d="M7.1 8.4L10.1 12L7.1 15.6" stroke="url(#g)" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M16.9 8.4L13.9 12L16.9 15.6" stroke="url(#g)" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>
           <defs><linearGradient id="g" x1="3" y1="3" x2="21" y2="21"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
         </svg>
       </div>
@@ -1974,9 +1998,23 @@ function applyTheme(t){
   document.documentElement.dataset.theme = dark?'dark':'';
   $('#themeBtn').innerHTML = dark?ICON_SUN:ICON_MOON;
   try{ localStorage.setItem('izv_theme', dark?'dark':'light'); }catch(e){}
+  // 시스템 창버튼(타이틀바 오버레이) 색을 툴바 배경과 일치
+  try{ window.imgview&&imgview.setTitleBarOverlay&&imgview.setTitleBarOverlay(
+        dark?{color:'#080a0d',symbolColor:'#c4ccd6'}:{color:'#e6e8ee',symbolColor:'#2b3444'}); }catch(e){}
 }
 $('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
 (function(){ let t='light'; try{ t=localStorage.getItem('izv_theme')||'light'; }catch(e){} applyTheme(t); })();
+// 툴바를 아이콘 전용으로: 보이는 라벨 텍스트는 디자인 툴팁(data-tip)으로 옮기고 네이티브 title 제거
+(function(){
+  document.querySelectorAll('.tools .tbtn').forEach(b=>{
+    let tip=(b.textContent||'').replace(/\s+/g,' ').trim();      // 라벨 우선
+    if(!tip) tip=(b.getAttribute('title')||'').trim();           // 아이콘 전용 버튼은 title 사용
+    tip=tip.replace(/\s*\([^)]*[A-Za-z][^)]*\)/g,'').replace(/\s+/g,' ').trim(); // 영문(괄호) 제거
+    [...b.childNodes].forEach(n=>{ if(n.nodeType===3) b.removeChild(n); }); // 텍스트 노드 제거(아이콘만)
+    if(tip) b.setAttribute('data-tip', tip);
+    b.removeAttribute('title');                                   // 네이티브 툴팁 끔
+  });
+})();
 // 뷰어 배경색
 const VIEWER_BGS=[
   {name:'테마 기본', color:'var(--surface-2)'},

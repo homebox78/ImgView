@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('imgview', {
   openExternal:  (u)       => ipcRenderer.invoke('open-external', u),
   toggleFullscreen:()      => ipcRenderer.invoke('toggle-fullscreen'),
   toggleAlwaysOnTop:()     => ipcRenderer.invoke('toggle-always-on-top'),
+  setTitleBarOverlay:(o)   => ipcRenderer.invoke('set-titlebar-overlay', o),
   // 폴더 트리(탐색기)
   listDrives:    ()        => ipcRenderer.invoke('list-drives'),
   listNetwork:   ()        => ipcRenderer.invoke('list-network'),
