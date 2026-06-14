@@ -44,7 +44,7 @@ async function sendFilesToRenderer(win, paths, replace = false) {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1518, height: 800, minWidth: 760, minHeight: 560,
+    width: 1518, height: 830, minWidth: 760, minHeight: 560,
     backgroundColor: '#1a1d24',
     show: false,                       // 첫 페인트(테마 적용)까지 숨겨 라이트/다크 깜빡임 방지
     title: 'ImgZipView',

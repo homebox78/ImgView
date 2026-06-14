@@ -47,8 +47,8 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .app{height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* 상단바 */
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;
-  padding:11px 18px;background:var(--bg-soft);border-bottom:1px solid var(--border);flex:none}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:7px 14px;background:var(--bg-soft);border-bottom:1px solid var(--border);flex:none}
 .brand{display:flex;align-items:center;gap:11px;flex:none}
 .logo{width:36px;height:36px;border-radius:11px;
   background:linear-gradient(145deg,var(--surface-3),var(--surface));
@@ -58,22 +58,24 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 .brand-name b{color:var(--accent)}
 .brand-sub{font-size:10.5px;color:var(--text-faint);margin-top:2px}
 /* 툴바: 기능 그룹으로 정돈 */
-.tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.tgroup{display:flex;align-items:center;gap:4px;padding:3px;background:var(--surface);
-  border:1px solid var(--border-soft);border-radius:11px}
-.tbtn{display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;
-  border:1px solid transparent;background:transparent;color:var(--text-dim);
-  border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;
-  transition:.15s var(--ease);white-space:nowrap}
+/* 일체형 평면 툴바 — 개별 버튼 배경/보더 없이 한 줄, 그룹은 얇은 구분선 */
+.tools{display:flex;align-items:center;gap:1px;flex-wrap:nowrap;justify-content:flex-end}
+.tgroup{display:flex;align-items:center;gap:1px}
+.tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 8px;position:relative;
+  border:none;background:transparent;color:var(--text-dim);
+  border-radius:7px;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:600;
+  transition:.12s var(--ease);white-space:nowrap}
 .tbtn:hover:not(:disabled){color:var(--text);background:var(--btn-hi)}
-.tbtn.icon{width:34px;padding:0;justify-content:center}
-.tbtn.accent{background:var(--primary);
-  color:var(--primary-ink);border:none;font-weight:700;height:34px;padding:0 15px;box-shadow:0 2px 8px -3px rgba(17,24,39,.3)}
-.tbtn.accent:hover{background:var(--primary-hi);color:var(--primary-ink)}
-.tbtn.on,.tbtn.on:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.tbtn svg{width:15px;height:15px;opacity:.92}
-.tbtn:disabled{opacity:.32;cursor:not-allowed}
-.sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+.tbtn.icon{width:30px;padding:0;justify-content:center}
+.tbtn.accent{background:var(--accent);color:var(--accent-ink);font-weight:700;height:30px;padding:0 13px;border-radius:8px}
+.tbtn.accent:hover{background:var(--accent-deep);color:var(--accent-ink)}
+/* 활성(핀/정보 등) — 파란 언더라인 */
+.tbtn.on{color:var(--accent);background:transparent}
+.tbtn.on:hover{background:var(--btn-hi)}
+.tbtn.on::after{content:'';position:absolute;left:8px;right:8px;bottom:1px;height:2px;border-radius:2px;background:var(--accent)}
+.tbtn svg{width:14px;height:14px;opacity:.9}
+.tbtn:disabled{opacity:.3;cursor:not-allowed}
+.sep{width:1px;height:18px;background:var(--border);margin:0 5px}
 
 /* 본문 */
 .body{flex:1;position:relative;display:flex;min-height:0}
@@ -101,7 +103,7 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 body.col-resizing{cursor:col-resize;user-select:none}
 
 /* 좌측 폴더 트리(탐색기) */
-.tree{width:300px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
+.tree{width:270px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
   padding:8px 6px;background:var(--bg-soft);font-size:12.5px}
 .tree-head{display:flex;align-items:center;gap:6px;padding:4px 8px 8px;
   font-size:11px;font-weight:700;color:var(--text-faint);letter-spacing:.02em}
@@ -443,6 +445,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       <button class="tbtn" id="webBtn" title="웹페이지 전체 캡처">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18"/></svg>
         웹 캡처</button>
+      <div class="sep"></div>
       <!-- 편집·변환 그룹 -->
       <div class="tgroup">
         <button class="tbtn icon" id="rotL" disabled title="왼쪽 회전 (Ctrl+,)">
@@ -471,6 +474,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
           워터마크</button>
       </div>
+      <div class="sep"></div>
       <!-- 파일 관리 그룹 -->
       <div class="tgroup">
         <button class="tbtn" id="renameBtn" disabled title="이름변경 (F2)">
@@ -480,6 +484,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           삭제</button>
       </div>
+      <div class="sep"></div>
       <button class="tbtn icon" id="themeBtn" title="다크/라이트 테마"></button>
       <button class="tbtn icon" id="pinBtn" title="항상 위에 표시 (Always on top)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5.76a2 2 0 0 0 .59 1.41L17 13.5V15a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-1.5l1.41-1.33A2 2 0 0 0 9 10.76z"/></svg></button>
@@ -2295,7 +2300,7 @@ document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
 (function setupResizers(){
   const tree=$('#tree'), prev=$('#preview');
   const clampW=(v,mn,mx)=>Math.max(mn,Math.min(mx,v));
-  try{ const tw=+localStorage.getItem('izv_treeW3'); if(tw) tree.style.width=clampW(tw,150,480)+'px'; }catch(e){}
+  try{ const tw=+localStorage.getItem('izv_treeW4'); if(tw) tree.style.width=clampW(tw,150,480)+'px'; }catch(e){}
   try{ const pw=+localStorage.getItem('izv_prevW'); if(pw) prev.style.width=clampW(pw,240,720)+'px'; }catch(e){}
   function drag(handle, el, mn, mx, key, leftSide){
     if(!handle) return;
@@ -2309,9 +2314,9 @@ document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
         window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); };
       window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
     });
-    handle.addEventListener('dblclick',()=>{ const d=leftSide?300:340; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
+    handle.addEventListener('dblclick',()=>{ const d=leftSide?270:340; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
   }
-  drag($('#rzTree'), tree, 150, 480, 'izv_treeW3', true);    // 좌측 트리(150~480)
+  drag($('#rzTree'), tree, 150, 480, 'izv_treeW4', true);    // 좌측 트리(150~480)
   drag($('#rzPrev'), prev, 240, 720, 'izv_prevW', false);   // 우측 미리보기(240~720)
 })();
 setMode('grid');
