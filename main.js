@@ -45,13 +45,13 @@ async function sendFilesToRenderer(win, paths, replace = false) {
 function createWindow() {
   const win = new BrowserWindow({
     width: 1718, height: 1030, minWidth: 760, minHeight: 560,
-    backgroundColor: '#eceef2',
+    backgroundColor: '#f5f5f7',
     show: false,                       // 첫 페인트까지 숨겨 깜빡임 방지
     title: 'ImgZipView',
     autoHideMenuBar: true,
     // 상단 타이틀바를 앱 툴바와 한 몸으로 — 시스템 창버튼만 오버레이로 남김(라이트)
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#e7e9ee', symbolColor: '#2b3444', height: 50 },
+    titleBarOverlay: { color: '#fbfbfd', symbolColor: '#1d1d1f', height: 50 },
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -440,10 +440,14 @@ ipcMain.handle('save-as', async (event, { srcPath, defaultName }) => {
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
-// 삭제 (휴지통)
+// 삭제 (휴지통) — 렌더러가 file:// 핸들을 막 놓은 직후엔 잠겨 있을 수 있어 몇 번 재시도
 ipcMain.handle('delete-file', async (event, srcPath) => {
-  try { await shell.trashItem(srcPath); return { ok: true }; }
-  catch (e) { return { ok: false, error: String(e) }; }
+  let last;
+  for (let i = 0; i < 4; i++) {
+    try { await shell.trashItem(srcPath); return { ok: true }; }
+    catch (e) { last = e; await new Promise(r => setTimeout(r, 150)); }
+  }
+  return { ok: false, error: String((last && last.message) || last) };
 });
 
 ipcMain.handle('open-folder-path', async (event, dir) => { if (dir) shell.openPath(dir); });
