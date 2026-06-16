@@ -96,7 +96,8 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 
 /* === 그리드 화면: [폴더 트리] [바둑판] [미리보기] === */
-.gridscreen{flex:1;display:flex;min-height:0}
+.gridscreen{flex:1;display:flex;flex-direction:column;min-height:0}
+.gridrow{flex:1;display:flex;min-height:0}
 /* 사이드 패널 너비 조절 핸들 */
 .resizer{flex:none;width:9px;cursor:col-resize;position:relative;z-index:6}
 /* 호버/드래그 시 강조 라인 (뒤) */
@@ -111,7 +112,7 @@ body{font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-s
 body.col-resizing{cursor:col-resize;user-select:none}
 
 /* 좌측 폴더 트리(탐색기) */
-.tree{width:270px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
+.tree{width:256px;flex:none;border-right:1px solid var(--border-soft);overflow:auto;
   padding:8px 6px;background:var(--bg-soft);font-size:12.5px}
 .tree-head{display:flex;align-items:center;gap:6px;padding:4px 8px 8px;
   font-size:11px;font-weight:700;color:var(--text-faint);letter-spacing:.02em}
@@ -160,7 +161,7 @@ body.col-resizing{cursor:col-resize;user-select:none}
 .tile.active .tile-name{color:var(--text)}
 
 /* 우측 미리보기 패널 */
-.preview{width:340px;flex:none;border-left:1px solid var(--border-soft);
+.preview{width:289px;flex:none;border-left:1px solid var(--border-soft);
   padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--bg-soft)}
 .preview-empty{margin:auto;text-align:center;color:var(--text-faint);font-size:13px;line-height:1.8}
 .pv-img{flex:1;min-height:0;display:grid;place-items:center;background:var(--surface-2);
@@ -310,8 +311,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .csel-opt.sel{color:var(--accent);font-weight:700}
 .csel-opt.sel::after{content:"✓";margin-left:auto;font-size:12px}
 
-/* === 주소 표시줄 === */
-.addrbar{flex:none;display:flex;align-items:center;gap:5px;padding:10px 16px 0}
+/* === 주소 표시줄 (본문 상단 전체 폭) === */
+.addrbar{flex:none;display:flex;align-items:center;gap:5px;padding:9px 16px;
+  border-bottom:1px solid var(--border-soft);background:var(--bg-soft)}
 .addr-nav{flex:none;width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--border);
   background:var(--surface);border-radius:8px;color:var(--text-dim);cursor:pointer;transition:.12s var(--ease)}
 .addr-nav svg{width:16px;height:16px}
@@ -414,8 +416,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .ctxmenu .carrow{margin-left:auto;font-size:13px;color:var(--text-faint);padding-left:12px}
 .ctxmenu .ci.has-sub:hover .carrow{color:inherit}
 .ctxmenu .submenu{position:absolute;left:100%;top:-7px;min-width:180px;display:none;margin-left:3px;
-  background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;color:var(--text);
   box-shadow:0 12px 34px -10px rgba(17,24,39,.25);z-index:81}
+.ctxmenu .submenu .ci{color:var(--text)}   /* 부모 호버색(흰색) 상속 방지 */
 .ctxmenu .ci.has-sub:hover>.submenu{display:block}
 /* 부모-자식 사이 호버 끊김 방지용 투명 다리 */
 .ctxmenu .ci.has-sub::after{content:'';position:absolute;left:100%;top:0;width:8px;height:100%}
@@ -544,28 +547,29 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <div class="body" id="body">
     <!-- 폴더 트리 + 바둑판 + 우측 미리보기 -->
     <div class="gridscreen" id="gridScreen">
+      <div class="addrbar">
+        <button class="addr-nav" id="navBack" title="뒤로" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button class="addr-nav" id="navFwd" title="앞으로" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="addr-nav" id="navUp" title="상위 폴더" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        <span class="addr-label">주소</span>
+        <input id="addrInput" class="addr-input" placeholder="경로 입력 후 Enter (예: C:\Users  ·  \\서버\공유)" spellcheck="false">
+        <button class="addr-nav addr-go" id="addrGo" title="이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="gridrow">
       <aside class="tree" id="tree">
         <div class="tree-head">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
           폴더
         </div>
-        <div class="tpath"><input id="pathInput" placeholder="경로 입력 후 Enter (예: \\서버\공유)" spellcheck="false"></div>
         <div id="treeRoots"></div>
       </aside>
       <div class="resizer" id="rzTree" title="너비 조절 (더블클릭=초기화)"></div>
       <div class="gridmain">
-        <div class="addrbar">
-          <button class="addr-nav" id="navBack" title="뒤로" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <button class="addr-nav" id="navFwd" title="앞으로" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
-          <button class="addr-nav" id="navUp" title="상위 폴더" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
-          <span class="addr-label">주소</span>
-          <input id="addrInput" class="addr-input" placeholder="경로 입력 후 Enter (예: C:\Users  ·  \\서버\공유)" spellcheck="false">
-          <button class="addr-nav addr-go" id="addrGo" title="이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-        </div>
         <div class="gridtop">
           <div class="sortctl">
             <select id="sortSel" title="정렬 기준">
               <option value="name">이름순</option>
+              <option value="ext">확장자순</option>
               <option value="created">날짜순</option>
               <option value="size">용량순</option>
               <option value="dims">해상도순</option>
@@ -585,6 +589,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       </div>
       <div class="resizer" id="rzPrev" title="너비 조절 (더블클릭=초기화)"></div>
       <aside class="preview" id="preview"></aside>
+      </div>
     </div>
 
     <!-- 단독 크게보기 -->
@@ -1161,6 +1166,7 @@ async function applySort(quiet){
   images.sort((a,b)=>{
     let r=0;
     if(sortKey==='name') r=cmpName(a,b);
+    else if(sortKey==='ext'){ const ex=s=>((s.name.match(/\.([^.]+)$/)||[,''])[1]).toLowerCase(); r=ex(a).localeCompare(ex(b),'ko'); }
     else if(sortKey==='created') r=(a.created||0)-(b.created||0);
     else if(sortKey==='size') r=(a.size||0)-(b.size||0);
     else if(sortKey==='dims') r=((a.dw||0)*(a.dh||0))-((b.dw||0)*(b.dh||0));
@@ -2497,7 +2503,6 @@ $('#slideBtn')&&($('#slideBtn').onclick=toggleSlideshow);
 
 // ---- 초기화 ----
 if(!API) $('#tree').style.display='none';   // 웹에서는 트리 숨김
-else $('#pathInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();openPathInput();} });
 enhanceSelect($('#rzMode')); enhanceSelect($('#cvFmt')); enhanceSelect($('#thumbSize'));   // 커스텀 드롭다운
 enhanceSelect($('#cmFmt')); enhanceSelect($('#cmSave')); enhanceSelect($('#sortSel'));
 enhanceSelect($('#webRange')); enhanceSelect($('#webFmt'));
@@ -2536,8 +2541,8 @@ document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
 (function setupResizers(){
   const tree=$('#tree'), prev=$('#preview');
   const clampW=(v,mn,mx)=>Math.max(mn,Math.min(mx,v));
-  try{ const tw=+localStorage.getItem('izv_treeW4'); if(tw) tree.style.width=clampW(tw,150,480)+'px'; }catch(e){}
-  try{ const pw=+localStorage.getItem('izv_prevW'); if(pw) prev.style.width=clampW(pw,240,720)+'px'; }catch(e){}
+  try{ const tw=+localStorage.getItem('izv_treeW5'); if(tw) tree.style.width=clampW(tw,150,480)+'px'; }catch(e){}
+  try{ const pw=+localStorage.getItem('izv_prevW2'); if(pw) prev.style.width=clampW(pw,220,720)+'px'; }catch(e){}
   function drag(handle, el, mn, mx, key, leftSide){
     if(!handle) return;
     handle.addEventListener('mousedown',e=>{
@@ -2550,10 +2555,10 @@ document.querySelectorAll('.inp[type=number]').forEach(enhanceNumber);
         window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); };
       window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
     });
-    handle.addEventListener('dblclick',()=>{ const d=leftSide?270:340; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
+    handle.addEventListener('dblclick',()=>{ const d=leftSide?256:289; el.style.width=d+'px'; try{localStorage.setItem(key,d);}catch(e){} });
   }
-  drag($('#rzTree'), tree, 150, 480, 'izv_treeW4', true);    // 좌측 트리(150~480)
-  drag($('#rzPrev'), prev, 240, 720, 'izv_prevW', false);   // 우측 미리보기(240~720)
+  drag($('#rzTree'), tree, 150, 480, 'izv_treeW5', true);    // 좌측 트리(150~480)
+  drag($('#rzPrev'), prev, 220, 720, 'izv_prevW2', false);  // 우측 미리보기(220~720)
 })();
 setMode('grid');
 renderGrid();
