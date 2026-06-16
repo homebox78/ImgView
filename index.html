@@ -1760,31 +1760,54 @@ async function buildPdf(targets){
   return pdf.output('blob');
 }
 $('#cvQ').oninput=e=>$('#cvQVal').textContent=e.target.value;
+// 현재 폴더를 조용히 다시 읽어 새 파일 반영(토스트 없음)
+async function refreshFolder(){
+  if(!API||!API.loadFolder||!curFolder)return false;
+  const r=await API.loadFolder(curFolder);   // add-files(replace) 이벤트가 images 갱신·렌더
+  if(r&&r.ok){ folderCards=r.subfolders||[]; }
+  return !!(r&&r.ok);
+}
 $('#cvApply').onclick=async()=>{
   const sel=(mode==='grid')?selIndices():[idx];
   const targets=sel.map(i=>images[i]).filter(Boolean);
   if(!targets.length)return;
   const fmt=$('#cvFmt').value, q=(+$('#cvQ').value)/100;
   closeDialogs();
-  const files=[];
-  if(fmt==='pdf'){
-    toast('PDF 만드는 중…');
-    const blob=await buildPdf(targets);
-    const base=targets.length>1?`이미지_${targets.length}장`:targets[0].name.replace(/\.[^.]+$/,'');
-    files.push({name:`${base}.pdf`,data:await blob.arrayBuffer()});
-  } else {
-    for(const im of targets){
-      const blob=await renderToBlob(im,0,null,fmt,q);
-      const base=im.name.replace(/\.[^.]+$/,'');
-      files.push({name:`${base}.${fmt}`,data:await blob.arrayBuffer()});
-    }
-  }
-  if(!API||!API.saveFiles){
-    files.forEach(f=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f.data]));a.download=f.name;a.click();});
+
+  // 데스크톱 빌드가 아니면 기존 다운로드 방식
+  if(!API||!API.convertSave){
+    if(fmt==='pdf'){ const blob=await buildPdf(targets); const base=targets.length>1?`이미지_${targets.length}장`:targets[0].name.replace(/\.[^.]+$/,''); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${base}.pdf`;a.click(); }
+    else { for(const im of targets){ await ensureRenderable(im); const blob=await renderToBlob(im,0,null,fmt,q); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${im.name.replace(/\.[^.]+$/,'')}.${fmt}`;a.click(); } }
     toast('다운로드 시작');return;
   }
-  const r=await API.saveFiles({files});
-  if(r.ok)toast(`${files.length>1?files.length+'개 ':''}${fmt.toUpperCase()}로 변환 저장 완료`); else if(!r.canceled)toast('저장 실패');
+
+  let ok=0, fail=0;
+  if(fmt==='pdf'){
+    toast('PDF 만드는 중…');
+    try{
+      const blob=await buildPdf(targets);
+      const base=targets.length>1?`이미지_${targets.length}장`:targets[0].name.replace(/\.[^.]+$/,'');
+      const r=await API.convertSave({srcPath:targets[0].path, name:`${base}.pdf`, data:await blob.arrayBuffer()});
+      if(r&&r.ok)ok=1; else fail=1;
+    }catch(e){ fail=1; }
+  } else {
+    // 한 장씩 변환→같은 폴더에 즉시 저장(메모리 누적·대용량 IPC 없이 멈춤 방지)
+    const N=targets.length;
+    for(let k=0;k<N;k++){
+      const im=targets[k];
+      if(!im||!im.path){ fail++; continue; }
+      try{
+        await ensureRenderable(im);
+        const blob=await renderToBlob(im,0,null,fmt,q);
+        const base=im.name.replace(/\.[^.]+$/,'');
+        const r=await API.convertSave({srcPath:im.path, name:`${base}.${fmt}`, data:await blob.arrayBuffer()});
+        if(r&&r.ok)ok++; else fail++;
+      }catch(e){ fail++; }
+      if(N>1 && (k%4===0 || k===N-1)){ toast(`변환 중… ${k+1}/${N}`); await new Promise(r=>setTimeout(r,0)); }  // UI 갱신 양보
+    }
+  }
+  await refreshFolder();   // 같은 폴더에 생성된 새 파일 반영
+  toast(fail? `${ok}개 변환 · ${fail}개 실패` : `${ok}개 ${fmt.toUpperCase()}로 변환 완료 · 같은 폴더에 저장`);
 };
 
 // ---- 용량 줄이기 (선택 이미지 일괄 압축) ----
@@ -1859,15 +1882,20 @@ $('#renameBtn').onclick=()=>{
   $('#renameScrim').classList.add('show');
   setTimeout(()=>{ inp.focus(); const dot=im.name.lastIndexOf('.'); inp.setSelectionRange(0, dot>0?dot:im.name.length); },50);
 };
+// 그리드/목록에서 해당 항목 이름만 갱신(전체 재구성 없이 빠르게)
+function updateNameInDom(i, name){
+  const t=document.querySelector(`#grid .tile[data-i="${i}"] .tile-name`); if(t){ t.textContent=name; t.title=name; }
+  const d=document.querySelector(`#grid .dl-row[data-i="${i}"] .dl-name`); if(d){ d.textContent=name; d.title=name; }
+}
 async function doRename(){
   const im=current(); if(!im||!API||!im.path){closeDialogs();return;}
   const nn=($('#rnInput').value||'').trim();
   closeDialogs();
   if(!nn||nn===im.name)return;
   const r=await API.renameFile({srcPath:im.path,newName:nn});
-  if(r.ok){im.name=nn;im.path=r.path;
+  if(r.ok){ im.name=nn; im.path=r.path;
     if(mode==='single')document.title=`${nn} — ImgZipView`;
-    renderGrid(); if(mode==='grid')select(idx); else updateStatus(); toast('이름변경 완료');}
+    updateNameInDom(idx, nn); renderPreview(); updateStatus(); toast('이름변경 완료'); }
   else toast(r.error||'이름변경 실패');
 }
 $('#rnApply').onclick=doRename;
@@ -1937,25 +1965,18 @@ $('#brApply').onclick=async()=>{
   const rows=batchNames();
   closeDialogs();
   if(!rows.length)return;
+  if(!API||!API.renameBatch){ toast('데스크톱 빌드에서 가능합니다'); return; }
+  if(rows.length>1) toast(`이름변경 중… ${rows.length}개`);
+  // 임시명 2단계 처리(순환 충돌 방지)를 메인에서 IPC 1회로 — 왕복 지연 제거
+  const items=rows.map(r=>({ srcPath:images[r.i].path, newName:r.neu }));
+  const res=await API.renameBatch({items});
   let ok=0, fail=0;
-  // 임시명 2단계 처리로 순환 충돌(A↔B) 방지
-  const tmpSuffix='.imgview_tmp_';
-  // 1단계: 임시 이름으로
-  for(let k=0;k<rows.length;k++){
-    const im=images[rows[k].i];
-    const tmp=tmpSuffix+k+(im.name.match(/\.[^.]+$/)||[''])[0];
-    const r=await API.renameFile({srcPath:im.path,newName:tmp});
-    if(r.ok){ im.path=r.path; im._tmp=true; } else { im._tmp=false; }
-  }
-  // 2단계: 최종 이름으로
-  for(let k=0;k<rows.length;k++){
-    const im=images[rows[k].i];
-    if(im._tmp===false){ fail++; delete im._tmp; continue; }
-    const r=await API.renameFile({srcPath:im.path,newName:rows[k].neu});
-    if(r.ok){ im.name=rows[k].neu; im.path=r.path; ok++; } else { fail++; }
-    delete im._tmp;
-  }
-  renderGrid(); if(mode==='grid'){ syncSelClasses(); renderPreview(); } updateStatus();
+  (res&&res.results||[]).forEach((rr,k)=>{
+    const im=images[rows[k].i]; if(!im)return;
+    if(rr&&rr.ok){ im.name=rr.name; im.path=rr.path; updateNameInDom(rows[k].i, rr.name); ok++; }
+    else fail++;
+  });
+  renderPreview(); updateStatus();
   toast(fail? `${ok}개 변경 · ${fail}개 실패` : `${ok}개 이름변경 완료`);
 };
 $('#delBtn').onclick=async()=>{

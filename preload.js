@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('imgview', {
   captureHistory:()        => ipcRenderer.invoke('capture-history'),
   saveBytes:     (payload) => ipcRenderer.invoke('save-bytes', payload),
   renameFile:    (payload) => ipcRenderer.invoke('rename-file', payload),
+  renameBatch:   (payload) => ipcRenderer.invoke('rename-batch', payload),
+  convertSave:   (payload) => ipcRenderer.invoke('convert-save', payload),
   deleteFile:    (p)       => ipcRenderer.invoke('delete-file', p),
   openFolderPath:(d)       => ipcRenderer.invoke('open-folder-path', d),
   showInFolder:  (p)       => ipcRenderer.invoke('show-in-folder', p),

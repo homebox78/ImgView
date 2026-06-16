@@ -338,6 +338,53 @@ ipcMain.handle('rename-file', async (event, { srcPath, newName }) => {
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
+// 포맷변환 결과를 원본과 같은 폴더에 저장 (대화상자 없음, 이름 충돌 시 번호 부여)
+ipcMain.handle('convert-save', async (event, { srcPath, name, data }) => {
+  try {
+    const dir = path.dirname(srcPath);
+    const ext = path.extname(name);
+    const base = name.slice(0, name.length - ext.length);
+    let target = path.join(dir, name);
+    let i = 1;
+    while (await exists(target)) { target = path.join(dir, `${base} (${i})${ext}`); i++; }
+    await fs.writeFile(target, Buffer.from(data));
+    return { ok: true, path: target, name: path.basename(target) };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+// 여러 파일 이름변경을 한 번의 IPC로 처리 (임시명 2단계로 순환 충돌 방지)
+ipcMain.handle('rename-batch', async (event, { items }) => {
+  const list = items || [];
+  const results = new Array(list.length);
+  const tmp = new Array(list.length);
+  const TMP = '.imgzv_tmp_';
+  // 1단계: 임시 이름으로
+  for (let k = 0; k < list.length; k++) {
+    try {
+      const sp = list[k].srcPath;
+      const dir = path.dirname(sp);
+      const t = path.join(dir, TMP + k + path.extname(sp));
+      await fs.rename(sp, t);
+      tmp[k] = { t, dir, newName: list[k].newName };
+    } catch (e) { results[k] = { ok: false, error: String(e) }; }
+  }
+  // 2단계: 최종 이름으로 (기존 파일과 충돌 시 번호)
+  for (let k = 0; k < list.length; k++) {
+    if (!tmp[k]) continue;
+    try {
+      const { t, dir, newName } = tmp[k];
+      const ext = path.extname(newName);
+      const base = newName.slice(0, newName.length - ext.length);
+      let target = path.join(dir, newName);
+      let i = 1;
+      while (await exists(target)) { target = path.join(dir, `${base} (${i})${ext}`); i++; }
+      await fs.rename(t, target);
+      results[k] = { ok: true, path: target, name: path.basename(target) };
+    } catch (e) { results[k] = { ok: false, error: String(e) }; }
+  }
+  return { ok: true, results };
+});
+
 // 삭제 (휴지통)
 ipcMain.handle('delete-file', async (event, srcPath) => {
   try { await shell.trashItem(srcPath); return { ok: true }; }
