@@ -1,5 +1,5 @@
 // ImgView — Electron 메인 프로세스
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard, nativeImage } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -383,6 +383,61 @@ ipcMain.handle('rename-batch', async (event, { items }) => {
     } catch (e) { results[k] = { ok: false, error: String(e) }; }
   }
   return { ok: true, results };
+});
+
+// 파일 복사/이동(붙여넣기) — 다른(또는 같은) 폴더로. cut=true면 이동.
+ipcMain.handle('paste-files', async (event, { paths, cut, destDir }) => {
+  let count = 0; const errs = [];
+  for (const src of (paths || [])) {
+    try {
+      const name = path.basename(src);
+      const ext = path.extname(name);
+      const base = name.slice(0, name.length - ext.length);
+      let target = path.join(destDir, name);
+      let i = 1;
+      while (await exists(target)) { target = path.join(destDir, `${base} (${i})${ext}`); i++; }
+      if (cut) {
+        try { await fs.rename(src, target); }                 // 같은 드라이브
+        catch (e) { await fs.copyFile(src, target); await fs.unlink(src); }  // 다른 드라이브(EXDEV)
+      } else {
+        await fs.copyFile(src, target);
+      }
+      count++;
+    } catch (e) { errs.push(String(e)); }
+  }
+  return { ok: true, count, errs };
+});
+
+// 새 폴더 만들기 (이름 충돌 시 번호)
+ipcMain.handle('new-folder', async (event, { dir, name }) => {
+  try {
+    const nm = (name || '새 폴더').replace(/[\\/:*?"<>|]/g, '_').trim() || '새 폴더';
+    let target = path.join(dir, nm); let i = 1;
+    while (await exists(target)) { target = path.join(dir, `${nm} (${i})`); i++; }
+    await fs.mkdir(target);
+    return { ok: true, path: target, name: path.basename(target) };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+// 현재/선택 이미지를 클립보드에 비트맵으로 복사 (다른 앱에 붙여넣기)
+ipcMain.handle('copy-image-clipboard', async (event, { path: p, dataURL }) => {
+  try {
+    let img = dataURL ? nativeImage.createFromDataURL(dataURL) : nativeImage.createFromPath(p);
+    if (!img || img.isEmpty()) return { ok: false, error: '이미지를 읽을 수 없습니다' };
+    clipboard.writeImage(img);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+// 다른 이름으로 저장 — 원본을 그대로 복사(저장 위치/이름 선택)
+ipcMain.handle('save-as', async (event, { srcPath, defaultName }) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const r = await dialog.showSaveDialog(win, { title: '다른 이름으로 저장', defaultPath: defaultName || (srcPath && path.basename(srcPath)) });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    await fs.copyFile(srcPath, r.filePath);
+    return { ok: true, path: r.filePath };
+  } catch (e) { return { ok: false, error: String(e) }; }
 });
 
 // 삭제 (휴지통)
