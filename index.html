@@ -409,6 +409,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .ctxmenu .ci .cnt{margin-left:auto;color:var(--text-faint);font-size:11.5px;padding-left:10px}
 .ctxmenu .ci:hover .cnt{color:inherit;opacity:.8}
 .ctxmenu .csep{height:1px;background:var(--border);margin:5px 4px}
+/* 하위 메뉴(서브메뉴) */
+.ctxmenu .ci.has-sub{position:relative}
+.ctxmenu .carrow{margin-left:auto;font-size:13px;color:var(--text-faint);padding-left:12px}
+.ctxmenu .ci.has-sub:hover .carrow{color:inherit}
+.ctxmenu .submenu{position:absolute;left:100%;top:-7px;min-width:180px;display:none;margin-left:3px;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;
+  box-shadow:0 12px 34px -10px rgba(17,24,39,.25);z-index:81}
+.ctxmenu .ci.has-sub:hover>.submenu{display:block}
+/* 부모-자식 사이 호버 끊김 방지용 투명 다리 */
+.ctxmenu .ci.has-sub::after{content:'';position:absolute;left:100%;top:0;width:8px;height:100%}
+.ctxmenu.sub-left .submenu{left:auto;right:100%;margin-left:0;margin-right:3px}
+.ctxmenu.sub-left .ci.has-sub::after{left:auto;right:100%}
 /* 슬라이드쇼 표시 */
 .slideshow-on #slideBtn{color:var(--accent)}
 /* 자르기(크롭) 오버레이 */
@@ -2353,41 +2365,64 @@ $('#addrInput')&&$('#addrInput').addEventListener('keydown',e=>{ if(e.key==='Ent
 // ---- 우클릭 컨텍스트 메뉴 ----
 const CTX=el('div','ctxmenu'); CTX.style.display='none'; document.body.appendChild(CTX);
 function hideCtx(){ CTX.style.display='none'; }
+// 메뉴 구조(데이터) → 그룹은 하위메뉴(▸)로 묶어 길이를 줄임
+function renderMenuItems(items, n){
+  return items.map(it=>{
+    if(it.sep) return `<div class="csep"></div>`;
+    if(it.sub) return `<div class="ci has-sub"><span>${it.label}</span><span class="carrow">›</span><div class="submenu">${renderMenuItems(it.sub, n)}</div></div>`;
+    const cnt = (it.cnt&&n>1)?`<span class="cnt">${n}개</span>`:'';
+    return `<div class="ci ${it.danger?'danger':''}" data-act="${it.act}"><span>${it.label}</span>${cnt}</div>`;
+  }).join('');
+}
+function wireCtx(){
+  CTX.querySelectorAll('.ci[data-act]').forEach(ci=>ci.onclick=e=>{ e.stopPropagation(); hideCtx(); ctxAction(ci.dataset.act); });
+}
 function buildCtx(n){
-  const it=(act,label,extra='')=>`<div class="ci ${extra}" data-act="${act}"><span>${label}</span>${n>1?`<span class="cnt">${n}개</span>`:''}</div>`;
-  CTX.innerHTML =
-    it('open','크게 보기')+
-    it('slideshow','연속 보기')+
-    `<div class="csep"></div>`+
-    it('copy','복사')+
-    it('cut','잘라내기')+
-    it('paste','붙여넣기')+
-    it('clip','클립보드에 복사')+
-    `<div class="csep"></div>`+
-    it('crop','자르기')+
-    it('resize','크기 변경')+
-    it('rotR','오른쪽 회전')+
-    it('flipH','좌우 반전')+
-    it('adjust','밝기·대비·채도')+
-    it('wm','워터마크')+
-    `<div class="csep"></div>`+
-    it('comp','용량 줄이기')+
-    it('conv','포맷 변환')+
-    it('saveas','다른 이름으로 저장')+
-    it('rename','이름 변경')+
-    `<div class="csep"></div>`+
-    it('print','인쇄')+
-    it('props','파일 속성')+
-    it('explorer','탐색기에서 보기')+
-    `<div class="csep"></div>`+
-    it('del','삭제','danger');
-  CTX.querySelectorAll('.ci').forEach(ci=>ci.onclick=()=>{ hideCtx(); ctxAction(ci.dataset.act); });
+  const items=[
+    {act:'open',label:'크게 보기'},
+    {act:'slideshow',label:'연속 보기'},
+    {sep:1},
+    {label:'편집', sub:[
+      {act:'crop',label:'자르기'},
+      {act:'rotR',label:'오른쪽 회전'},
+      {act:'rotL',label:'왼쪽 회전'},
+      {act:'flipH',label:'좌우 반전'},
+      {act:'flipV',label:'상하 반전'},
+      {act:'adjust',label:'밝기·대비·채도'},
+      {act:'wm',label:'워터마크'},
+    ]},
+    {label:'변환 · 저장', sub:[
+      {act:'conv',label:'포맷 변환'},
+      {act:'comp',label:'용량 줄이기'},
+      {act:'resize',label:'크기 변경'},
+      {act:'saveas',label:'다른 이름으로 저장'},
+    ]},
+    {label:'파일', sub:[
+      {act:'copy',label:'복사'},
+      {act:'cut',label:'잘라내기'},
+      {act:'paste',label:'붙여넣기'},
+      {act:'rename',label:'이름 변경'},
+      {act:'newfolder',label:'새 폴더'},
+      {act:'explorer',label:'탐색기에서 보기'},
+    ]},
+    {act:'clip',label:'클립보드에 복사'},
+    {sep:1},
+    {act:'print',label:'인쇄'},
+    {act:'props',label:'파일 속성'},
+    {sep:1},
+    {act:'del',label:'삭제',danger:1,cnt:1},
+  ];
+  CTX.innerHTML=renderMenuItems(items, n); wireCtx();
 }
 // 빈 영역 우클릭 메뉴
 function buildCtxEmpty(){
-  const it=(act,label)=>`<div class="ci" data-act="${act}"><span>${label}</span></div>`;
-  CTX.innerHTML=it('paste','붙여넣기')+it('newfolder','새 폴더')+`<div class="csep"></div>`+it('selall','전체 선택');
-  CTX.querySelectorAll('.ci').forEach(ci=>ci.onclick=()=>{ hideCtx(); ctxAction(ci.dataset.act); });
+  const items=[
+    {act:'paste',label:'붙여넣기'},
+    {act:'newfolder',label:'새 폴더'},
+    {sep:1},
+    {act:'selall',label:'전체 선택'},
+  ];
+  CTX.innerHTML=renderMenuItems(items, 1); wireCtx();
 }
 function ctxAction(a){
   if(a==='open')openSingle(idx);
@@ -2402,7 +2437,9 @@ function ctxAction(a){
   else if(a==='props')showFileProps();
   else if(a==='crop')openCrop();
   else if(a==='rotR')rotateSave(90);
+  else if(a==='rotL')rotateSave(-90);
   else if(a==='flipH')flipSave('h');
+  else if(a==='flipV')flipSave('v');
   else if(a==='adjust')openAdjust();
   else if(a==='wm')openWm();
   else if(a==='print')printImage();
@@ -2419,6 +2456,7 @@ function placeCtx(x,y){
   if(x+mw>innerWidth)x=innerWidth-mw-6;
   if(y+mh>innerHeight)y=innerHeight-mh-6;
   CTX.style.left=x+'px'; CTX.style.top=y+'px';
+  CTX.classList.toggle('sub-left', x+mw+190>innerWidth);   // 우측 공간 부족 시 하위메뉴 왼쪽으로
 }
 function openCtxAt(x,y,n){ buildCtx(n); placeCtx(x,y); }
 function openCtxEmptyAt(x,y){ buildCtxEmpty(); placeCtx(x,y); }
